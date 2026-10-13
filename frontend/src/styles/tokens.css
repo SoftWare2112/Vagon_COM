@@ -1,0 +1,22 @@
+/* Paleta GRIS/BLANCO sobria (requisito de RH). Cambiar aquí cambia toda la app. */
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --ink: #1f2933;
+  --muted: #6b7280;
+  --line: #e2e5ea;
+  --sidebar: #2b3138;
+  --sidebar-ink: #d6dae0;
+  --accent: #4b5563;
+  --accent-ink: #ffffff;
+  --header-tabla: #3a424c;
+  --warn-bg: #fff4c2; --warn-ink: #7a5b00;   /* 1 falta  */
+  --bad-bg: #fde0e0;  --bad-ink: #8a1c1c;    /* 2+ faltas */
+  --ok-bg: #e3f4e8;   --ok-ink: #1d5c33;
+  --info-bg: #e8edf3; --info-ink: #2f3e4e;
+  --editado: #6b8cae;
+  --radio: 8px;
+  --sombra: 0 1px 3px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.04);
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --toque: 44px;  /* tamaño mínimo táctil */
+}
