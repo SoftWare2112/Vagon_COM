@@ -64,6 +64,7 @@ return [
     | is set to "UTC" by default as it is suitable for most use cases.
     |
     */
+    
 
     'timezone' => 'UTC',
 
@@ -77,6 +78,7 @@ return [
     | set to any locale for which you plan to have translation strings.
     |
     */
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
     'locale' => env('APP_LOCALE', 'en'),
 
