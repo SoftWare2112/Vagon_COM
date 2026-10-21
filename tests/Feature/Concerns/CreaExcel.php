@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * Genera archivos de Excel de prueba con el formato confirmado por RH (octubre 2026).
+ * Genera archivos de Excel de prueba con el formato confirmado por RH (octubre 2026; "#" = número de nómina, v6).
  * Las filas se describen POR NOMBRE DE COLUMNA, así una prueba puede quitar o insertar
  * columnas sin recalcular posiciones.
  */
@@ -25,7 +25,7 @@ trait CreaExcel
         [$periodo, $dom1, $dom2] = $this->quincenas[$q];
 
         return [
-            'Nombre', 'Fecha de ingreso', 'Puesto', 'Prima vacacional', 'Bono 3 meses', 'Bono puntualidad', 'Bono asistencia',
+            '#', 'Nombre', 'Fecha de ingreso', 'Puesto', 'Prima vacacional', 'Bono 3 meses', 'Bono puntualidad', 'Bono asistencia',
             'Numero de faltas', 'Detalles', 'Acredita para bono puntualidad', 'Programado en Domingo', $dom1, $dom2, $periodo,
         ];
     }
@@ -37,7 +37,7 @@ trait CreaExcel
     protected function fila(string $nombre, int $faltas = 0, array $cambios = []): array
     {
         return array_replace([
-            'Nombre' => $nombre, 'Fecha de ingreso' => '15/01/2018', 'Puesto' => 'Asesor', 'Prima vacacional' => '$600.00',
+            '#' => null, 'Nombre' => $nombre, 'Fecha de ingreso' => '15/01/2018', 'Puesto' => 'Asesor', 'Prima vacacional' => '$600.00',
             'Bono 3 meses' => '$600.00', 'Bono puntualidad' => '$500.00', 'Bono asistencia' => '$300.00',
             'Numero de faltas' => $faltas, 'Detalles' => '', 'Acredita para bono puntualidad' => 1,
             'Programado en Domingo' => 1, 'DOM1' => 1, 'DOM2' => 0, 'PERIODO' => '1',
@@ -81,6 +81,25 @@ trait CreaExcel
         $enc = $this->encabezados($q);
 
         return [$enc, ...array_map(fn ($f) => $this->ordenar($enc, $f), $filas)];
+    }
+
+    /**
+     * Libro con el formato real de RH (INCIDENCIAS_Q17.xlsx): bloque Ejercicio/Periodo arriba,
+     * encabezados en la fila 4 y filas por letra de columna ['C' => 'nombre', 'E' => 45425, ...].
+     */
+    protected function excelQ17(array $previas, array $encabezados, array $filas, string $nombre = 'INCIDENCIAS_Q17.xlsx'): UploadedFile
+    {
+        $letras = array_keys($encabezados);
+        $vacia = array_fill_keys($letras, null);
+        $datos = array_map(fn ($f) => array_values(array_replace($vacia, array_intersect_key($f, $vacia))), $filas);
+
+        return $this->guardar(['Hoja1' => [...$previas, array_values($encabezados), ...$datos]], $nombre);
+    }
+
+    /** Libro de una hoja a partir de una cuadrícula completa (p. ej. Fixtures\Q17Final::libro()). */
+    protected function excelCuadricula(array $grid, string $nombre = 'INCIDENCIAS.xlsx'): UploadedFile
+    {
+        return $this->guardar(['Hoja1' => $grid], $nombre);
     }
 
     private function guardar(array $hojas, string $nombre): UploadedFile

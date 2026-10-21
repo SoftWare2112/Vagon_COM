@@ -7,6 +7,7 @@ use App\Models\Periodo;
 use App\Models\Registro;
 use App\Repositories\Contracts\RegistroRepository;
 use App\Repositories\FiltrosTabla;
+use App\Services\Exportacion\ReporteRh;
 use App\Services\Registros\PresentadorFila;
 use App\Services\Registros\RegistroService;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +43,18 @@ class RegistroController extends Controller
             'data' => collect($pagina->items())->map(fn (Registro $r) => $this->fila($r, $columnas))->values(),
             'meta' => ['total' => $pagina->total(), 'current_page' => $pagina->currentPage(), 'last_page' => $pagina->lastPage(), 'per_page' => $pagina->perPage()],
         ]);
+    }
+
+    /**
+     * GET /api/registros/impresion?periodo_id=&(mismos filtros) — v6
+     * TODA la tabla (sin paginar) con la estructura del archivo de RH, para el botón Imprimir.
+     */
+    public function impresion(Request $request, ReporteRh $reporte): JsonResponse
+    {
+        $periodo = $request->filled('periodo_id') ? Periodo::findOrFail($request->integer('periodo_id')) : Periodo::masReciente();
+        abort_if(! $periodo, 422, 'No hay datos para imprimir.');
+
+        return response()->json($reporte->construir($periodo, FiltrosTabla::desdeRequest($request, $periodo->id)));
     }
 
     /** "Vista en resumen": la misma fila, con la misma estructura, en un modal. */

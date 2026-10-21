@@ -10,6 +10,8 @@ import { LoginPage } from './features/auth/LoginPage';
 import { OlvidePage } from './features/auth/OlvidePage';
 import { RestablecerPage } from './features/auth/RestablecerPage';
 import { CambiarPasswordPage } from './features/auth/CambiarPasswordPage';
+import { ImprimirPage } from './features/impresion/ImprimirPage';
+import { EstadisticasPage } from './features/estadisticas/EstadisticasPage';
 
 export default function App() {
   return (
@@ -21,8 +23,11 @@ export default function App() {
 
         <Route element={<Protegida />}>
           <Route path="/cambiar-password" element={<CambiarPasswordPage />} />
+          {/* v6: impresión sin menú lateral (solo la tabla y su encabezado) */}
+          <Route element={<Protegida permiso="registros.ver" />}><Route path="/imprimir" element={<ImprimirPage />} /></Route>
           <Route element={<AppLayout />}>
             <Route element={<Protegida permiso="registros.ver" />}><Route index element={<DashboardPage />} /></Route>
+            <Route element={<Protegida permiso="registros.ver" />}><Route path="graficas" element={<EstadisticasPage />} /></Route>
             <Route element={<Protegida permiso="exportar" />}><Route path="informes" element={<InformesPage />} /></Route>
             <Route element={<Protegida permiso="usuarios.gestionar" />}><Route path="usuarios" element={<UsuariosPage />} /></Route>
             <Route element={<Protegida permiso="historico.ver" />}><Route path="historico" element={<HistoricoPage />} /></Route>

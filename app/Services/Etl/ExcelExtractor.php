@@ -17,6 +17,9 @@ use Throwable;
  *  - Un .docx renombrado a .xlsx o un .odt fallan aquí con "Archivo incorrecto".
  *  - En libros con varias hojas solo se lee la hoja del reporte (SelectorHoja); las demás
  *    se ignoran y nunca llegan a la base de datos.
+ *  - Logotipos e imágenes no se leen (setReadDataOnly): no ocupan celdas y no afectan la carga.
+ *  - Un título o bloque de datos arriba de la tabla se respeta: los encabezados se buscan en las
+ *    primeras 50 filas y lo de arriba se entrega como filasPrevias (Ejercicio, Periodo).
  */
 class ExcelExtractor
 {
@@ -84,9 +87,12 @@ class ExcelExtractor
             }
         }
 
+        // Lo que está arriba de los encabezados: "Tipo Periodo: Quincenal", "Ejercicio: 2026", "Periodo: 17"
+        $previas = array_slice($hojas[$sel['indice']]['filas'], 0, $filaEnc - 1);
+
         $libro->disconnectWorksheets();   // libera memoria
 
-        return [new HojaExtraida($encabezados, $filas, $filaEnc, $hoja->getTitle()), $sel['mensajes'], $nombresVisibles];
+        return [new HojaExtraida($encabezados, $filas, $filaEnc, $hoja->getTitle(), $previas), $sel['mensajes'], $nombresVisibles];
     }
 
     private function primerasFilas(Worksheet $ws, int $n): array

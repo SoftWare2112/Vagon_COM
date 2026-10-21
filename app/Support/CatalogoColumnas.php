@@ -4,7 +4,7 @@ namespace App\Support;
 
 /**
  * Columnas del sistema, en el orden del Excel confirmado por RH (formato de octubre 2026):
- * Nombre, Fecha de ingreso, Puesto, Prima vacacional, Bono 3 meses, Bono puntualidad,
+ * "#" (número de nómina, v6), Nombre, Fecha de ingreso, Puesto, Prima vacacional, Bono 3 meses, Bono puntualidad,
  * Bono asistencia, Número de faltas, Detalles, Acredita para bono puntualidad,
  * Programado en domingo, Domingo N..., periodo ("1 de octubre al 13 de octubre de 2026").
  * Se siembran en la tabla `columnas`; RH puede agregar más (origen 'personalizada')
@@ -15,6 +15,10 @@ namespace App\Support;
 final class CatalogoColumnas
 {
     public const SISTEMA = [
+        // v6: primera columna del archivo de RH ("#"). Folio de la nómina de ESA quincena (200, 201, ...);
+        // cambia cada quincena, por eso NO identifica al empleado (para eso está el número MSI).
+        ['clave' => 'numero_nomina', 'etiqueta' => 'Número de nómina', 'tipo' => 'entero', 'origen' => 'sistema',
+            'alias' => ['#', 'no de nomina', 'numero de nomina', 'no nomina', 'num nomina', 'nomina', 'folio de nomina', 'no. de nomina']],
         ['clave' => 'nombre_completo', 'etiqueta' => 'Nombre', 'tipo' => 'texto', 'origen' => 'sistema', 'obligatoria' => true, 'editable' => false,
             'alias' => ['nombre', 'nombre completo', 'nombre del empleado']],
         ['clave' => 'fecha_ingreso', 'etiqueta' => 'Fecha de ingreso', 'tipo' => 'fecha', 'origen' => 'sistema', 'obligatoria' => true, 'editable' => false,
@@ -46,7 +50,7 @@ final class CatalogoColumnas
 
     /** Columnas del sistema guardadas en columnas propias de `registros`. */
     public const DE_REGISTRO = [
-        'prima_vacacional', 'bono_3_meses', 'bono_puntualidad', 'bono_asistencia', 'num_faltas',
+        'numero_nomina', 'prima_vacacional', 'bono_3_meses', 'bono_puntualidad', 'bono_asistencia', 'num_faltas',
         'detalle', 'acredita_bono', 'programado_domingo',
     ];
 }

@@ -9,7 +9,7 @@ use App\Services\Etl\Dto\Mensaje;
  * Lógica pura (sin PhpSpreadsheet ni BD) para probarla con arreglos.
  *
  * Reglas:
- *  - Una hoja es candidata si alguna de sus primeras 10 filas tiene las columnas obligatorias
+ *  - Una hoja es candidata si alguna de sus primeras 50 filas tiene las columnas obligatorias
  *    (Nombre y Fecha de ingreso). Las hojas ocultas solo se leen si el usuario las pide.
  *  - 0 candidatas -> ERROR con la lista de hojas.
  *  - 1 candidata  -> se usa; las demás hojas (información complementaria) se ignoran con aviso.
@@ -19,7 +19,7 @@ use App\Services\Etl\Dto\Mensaje;
  */
 final class SelectorHoja
 {
-    public const FILAS_A_REVISAR = 10;
+    public const FILAS_A_REVISAR = 50;   // títulos, logotipo y bloque de datos arriba de la tabla
 
     public function __construct(private readonly HeaderMapper $mapper = new HeaderMapper) {}
 

@@ -15,6 +15,7 @@ class EloquentRegistroRepository implements RegistroRepository
 {
     private const COLUMNAS_ORDEN = [
         'numero' => 'e.numero_empleado',
+        'numero_nomina' => 'registros.numero_nomina',
         'nombre_completo' => 'e.nombre_normalizado',
         'puesto' => 'p.nombre',
         'fecha_ingreso' => 'e.fecha_ingreso',
@@ -75,7 +76,10 @@ class EloquentRegistroRepository implements RegistroRepository
             $q->where('registros.num_faltas', $f->faltas);
         }
 
-        if (isset(self::COLUMNAS_ORDEN[$f->orden])) {
+        if ($f->orden === 'numero_nomina') {
+            // Orden del archivo de RH (200, 201, ...); filas sin número al final y por nombre
+            $q->orderByRaw('registros.numero_nomina IS NULL')->orderBy('registros.numero_nomina', $f->direccion)->orderBy('e.nombre_normalizado');
+        } elseif (isset(self::COLUMNAS_ORDEN[$f->orden])) {
             $q->orderBy(self::COLUMNAS_ORDEN[$f->orden], $f->direccion);
         } elseif (str_starts_with($f->orden, 'extra:') && Columna::where('clave', $clave = substr($f->orden, 6))->where('origen', 'personalizada')->exists()) {
             // Columnas agregadas por RH: se ordena por el valor dentro del JSON (clave validada contra el catálogo)

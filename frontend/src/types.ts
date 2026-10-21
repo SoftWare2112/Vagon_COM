@@ -97,6 +97,20 @@ export interface MensajeCarga {
   columna: string | null;
   celda: string | null;
   valor_recibido: string | null;
+  confirmar?: boolean;      // advertencia que RH debe confirmar antes de aplicar (v5)
+}
+
+/** Encabezado del Excel que la plataforma no reconoció, con las columnas que más se le parecen. */
+export interface ColumnaDesconocida {
+  columna: string;          // letra en el Excel ("K")
+  encabezado: string;       // "# Faltas Q"
+  sugerencias: { clave: string; etiqueta: string }[];
+}
+
+/** Quincena: fechas + (si el Excel trae el bloque de arriba) Ejercicio y número de periodo. */
+export interface PeriodoCarga {
+  inicio: string; fin: string; etiqueta: string;
+  ejercicio?: number | null; numero?: number | null; tipo?: string | null;
 }
 
 export interface Carga {
@@ -105,7 +119,7 @@ export interface Carga {
   usuario?: string;
   estatus: 'CON_ERRORES' | 'LISTA' | 'APLICADA' | 'FALLIDA' | 'DESCARTADA';
   modo: 'REEMPLAZAR' | 'MANTENER' | null;
-  periodo: { inicio: string; fin: string; etiqueta: string } | null;
+  periodo: PeriodoCarga | null;
   hoja?: string | null;     // hoja del libro que se leyó
   hojas?: string[];         // hojas visibles del libro (para elegir otra)
   filas_total: number;
@@ -115,6 +129,8 @@ export interface Carga {
   subida: string;
   aplicada: string | null;
   mensajes?: MensajeCarga[];
+  desconocidas?: ColumnaDesconocida[];
+  requiere_confirmacion?: boolean;
 }
 
 export interface Impacto {
@@ -123,9 +139,34 @@ export interface Impacto {
 }
 
 export interface Previsualizacion {
-  periodo: { inicio: string; fin: string; etiqueta: string };
+  periodo: PeriodoCarga;
+  requiere_confirmacion?: boolean;
   quincena_nueva: boolean;
   columnas_ausentes: string[];
   modo_predeterminado: 'REEMPLAZAR' | 'MANTENER';
   impacto: Record<'REEMPLAZAR' | 'MANTENER', Impacto>;
+}
+
+/** v6: reporte con la estructura del archivo de RH (impresión; el Excel/PDF usan la misma). */
+export interface ReporteRh {
+  encabezado: { tipo: string | null; ejercicio: number | null; numero: number | null; titulo: string; periodo: string };
+  columnas: { clave: string | null; etiqueta: string; tipo: TipoColumna }[];
+  filas: (string | number | null)[][];
+  col_faltas: number | null;
+}
+
+/** v6: una quincena en las gráficas. */
+export interface PuntoSerie {
+  periodo_id: number; corto: string; nombre: string;
+  empleados: number; faltas_total: number; con_faltas: number; pct_con_faltas: number; acreditan_bono: number;
+  prima_vacacional: number; bono_3_meses: number; bono_puntualidad: number; bono_asistencia: number;
+  domingos_programados: number; domingos_trabajados: number; nuevos: number;
+}
+
+export interface Estadisticas {
+  periodo: { id: number; nombre: string; ejercicio: number } | null;
+  kpis: { empleados: number; faltas_total: number; con_faltas: number; pct_con_faltas: number; monto_bonos: number; acreditan_bono: number; nuevos: number } | null;
+  serie: PuntoSerie[];
+  top_faltas: { numero_empleado: string; nombre: string; faltas: number; quincenas: number }[];
+  por_puesto: { puesto: string; empleados: number }[];
 }

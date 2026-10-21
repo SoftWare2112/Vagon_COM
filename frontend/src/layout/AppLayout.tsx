@@ -6,6 +6,7 @@ import type { Permiso } from '../types';
 
 const MENU: { a: string; texto: string; icono: string; permiso: Permiso }[] = [
   { a: '/', texto: 'Dashboard', icono: '▦', permiso: 'registros.ver' },
+  { a: '/graficas', texto: 'Gráficas', icono: '📊', permiso: 'registros.ver' },
   { a: '/informes', texto: 'Informes', icono: '🗎', permiso: 'exportar' },
   { a: '/usuarios', texto: 'Usuarios', icono: '👥', permiso: 'usuarios.gestionar' },
   { a: '/historico', texto: 'Histórico', icono: '🕘', permiso: 'historico.ver' },

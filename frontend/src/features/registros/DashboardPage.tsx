@@ -24,7 +24,7 @@ export function DashboardPage() {
   const { puede } = useAuth();
   const esMovil = useEsMovil();
   const qc = useQueryClient();
-  const [filtros, setFiltros] = useState<Filtros>({ orden: 'nombre_completo', direccion: 'asc', page: 1 });
+  const [filtros, setFiltros] = useState<Filtros>({ orden: 'numero_nomina', direccion: 'asc', page: 1 });
   const [verId, setVerId] = useState<number | null>(null);
   const [editar, setEditar] = useState<Fila | null>(null);
   const [wizard, setWizard] = useState(false);
@@ -48,6 +48,15 @@ export function DashboardPage() {
     },
     onError: (e) => setAviso({ tipo: 'error', texto: mensajeDeError(e) }),
   });
+
+  /** v6: abre la vista de impresión (toda la tabla, mismos filtros) en otra pestaña. */
+  const imprimir = () => {
+    const p = new URLSearchParams();
+    Object.entries({ ...filtros, page: undefined, periodo_id: data?.periodo?.id }).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+    });
+    window.open(`/imprimir?${p.toString()}`, '_blank', 'noopener');
+  };
 
   const eliminar = useMutation({
     mutationFn: (f: Fila) => registrosApi.eliminar(f.id),
@@ -103,6 +112,7 @@ export function DashboardPage() {
           {puede('registros.crear') && <button className="btn btn-sec" onClick={() => setNuevo(true)}>+ Empleado</button>}
           {puedeColumnas && <button className="btn btn-sec" onClick={() => setPanelColumnas(true)} title="Agregar, mover u ocultar columnas">Columnas</button>}
           {puede('cargas.subir') && <button className="btn" onClick={() => setWizard(true)}>Cargar Excel</button>}
+          {periodo && <button className="btn btn-sec" onClick={imprimir} title="Imprime toda la tabla (todas las páginas) con el encabezado de RH">Imprimir</button>}
           {puede('exportar') && periodo && <>
             <button className="btn btn-sec" disabled={exportar.isPending} onClick={() => exportar.mutate('EXCEL')}>Excel</button>
             <button className="btn btn-sec" disabled={exportar.isPending} onClick={() => exportar.mutate('PDF')}>PDF</button>

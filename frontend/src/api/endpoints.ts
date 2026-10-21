@@ -1,7 +1,7 @@
 import { http, csrf } from './http';
 import type {
-  Carga, Columna, ColumnaCatalogo, ReporteCambioTipo, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen, RolesRespuesta,
-  TablaRespuesta, TipoColumna, Usuario,
+  Carga, Columna, ColumnaCatalogo, Estadisticas, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
+  RolesRespuesta, TablaRespuesta, TipoColumna, Usuario,
 } from '../types';
 
 /** Capa de servicios: los componentes nunca escriben URLs directamente. */
@@ -28,6 +28,8 @@ export const authApi = {
 
 export const registrosApi = {
   tabla: async (f: Filtros) => (await http.get<TablaRespuesta>('/api/registros', { params: limpiar(f) })).data,
+  /** v6: toda la tabla (sin paginar) con la estructura del archivo de RH, para imprimir. */
+  impresion: async (f: Filtros) => (await http.get<ReporteRh>('/api/registros/impresion', { params: limpiar({ ...f, page: undefined }) })).data,
   resumen: async (registroId: number) => (await http.get<Resumen>(`/api/registros/${registroId}/resumen`)).data,
   /** Solo se envían las columnas que cambiaron; `version` = la que vio el usuario (bloqueo optimista). */
   actualizar: async (registroId: number, version: number, valores: Fila['valores']) =>
@@ -37,6 +39,11 @@ export const registrosApi = {
     http.post('/api/empleados', p),
 };
 
+/** v6: datos de la pantalla Gráficas. */
+export const estadisticasApi = {
+  obtener: async (periodoId?: number) => (await http.get<Estadisticas>('/api/estadisticas', { params: limpiar({ periodo_id: periodoId }) })).data,
+};
+
 export const catalogosApi = {
   puestos: async () => (await http.get<{ id: number; nombre: string }[]>('/api/puestos')).data,
   periodos: async () => (await http.get<{ id: number; etiqueta: string }[]>('/api/periodos')).data,
@@ -44,11 +51,16 @@ export const catalogosApi = {
 
 export const cargasApi = {
   historial: async () => (await http.get<Paginado<Carga>>('/api/cargas')).data,
-  subir: async (archivo: File, anio: number, onProgreso?: (pct: number) => void, hoja?: string) => {
+  /** periodo: fechas dd/mm/aaaa que RH escribe cuando el encabezado del periodo está mal o no viene. */
+  subir: async (archivo: File, anio: number, onProgreso?: (pct: number) => void, hoja?: string, periodo?: { inicio: string; fin: string }) => {
     const fd = new FormData();
     fd.append('archivo', archivo);
     fd.append('anio', String(anio));
     if (hoja) fd.append('hoja', hoja);
+    if (periodo) {
+      fd.append('periodo_inicio', periodo.inicio);
+      fd.append('periodo_fin', periodo.fin);
+    }
     const r = await http.post<{ data: Carga }>('/api/cargas', fd, {
       onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
     });
@@ -56,8 +68,9 @@ export const cargasApi = {
   },
   detalle: async (id: number) => (await http.get<{ data: Carga }>(`/api/cargas/${id}`)).data.data,
   previsualizar: async (id: number) => (await http.get<Previsualizacion>(`/api/cargas/${id}/previsualizar`)).data,
-  aplicar: async (id: number, modo: 'REEMPLAZAR' | 'MANTENER') =>
-    (await http.post<{ message: string; resumen: Record<string, number> }>(`/api/cargas/${id}/aplicar`, { modo })).data,
+  /** confirmar: RH revisó las advertencias marcadas (columnas que faltan, domingos, duración del periodo). */
+  aplicar: async (id: number, modo: 'REEMPLAZAR' | 'MANTENER', confirmar = false) =>
+    (await http.post<{ message: string; resumen: Record<string, number> }>(`/api/cargas/${id}/aplicar`, { modo, confirmar })).data,
   descartar: (id: number) => http.post(`/api/cargas/${id}/descartar`),
 };
 
@@ -109,6 +122,8 @@ export const columnasApi = {
     (await http.patch<ReporteCambioTipo>(`/api/columnas/${id}/tipo`, { tipo, ...opciones })).data,
   mover: async (id: number, orden: number) => (await http.post<ColumnaCatalogo[]>(`/api/columnas/${id}/mover`, { orden })).data,
   activarDesactivar: (id: number) => http.delete(`/api/columnas/${id}`),
+  /** Mapeo asistido: el encabezado del Excel se guarda como otro nombre de esta columna. */
+  agregarAlias: async (id: number, alias: string) => (await http.post<ColumnaCatalogo>(`/api/columnas/${id}/alias`, { alias })).data,
 };
 
 export const rolesApi = {

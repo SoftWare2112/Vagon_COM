@@ -9,6 +9,16 @@ final class Mensaje
 
     public const ADVERTENCIA = 'ADVERTENCIA';
 
+    /**
+     * Advertencias que NO bloquean pero que RH debe confirmar expresamente al aplicar,
+     * porque pueden significar datos perdidos o guardados en la quincena equivocada.
+     */
+    public const CONFIRMAR = [
+        'COLUMNA_AUSENTE', 'COLUMNA_SIN_ENCABEZADO', 'DIA_NO_ES_DOMINGO',
+        'PERIODO_DURACION_INUSUAL', 'EJERCICIO_DISTINTO',
+        'NOMINA_CONTINUIDAD', 'PERIODO_YA_CARGADO',   // v6
+    ];
+
     public function __construct(
         public readonly string $nivel,
         public readonly string $codigo,
@@ -34,6 +44,11 @@ final class Mensaje
         return $this->nivel === self::ERROR;
     }
 
+    public function requiereConfirmacion(): bool
+    {
+        return ! $this->esError() && in_array($this->codigo, self::CONFIRMAR, true);
+    }
+
     public function toArray(): array
     {
         return [
@@ -44,6 +59,7 @@ final class Mensaje
             'columna' => $this->columna,
             'celda' => $this->celda,
             'valor_recibido' => $this->valorRecibido,
+            'confirmar' => $this->requiereConfirmacion(),
         ];
     }
 

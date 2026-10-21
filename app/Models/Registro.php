@@ -31,6 +31,7 @@ class Registro extends Model
             'bono_asistencia' => 'decimal:2',
             'programado_domingo' => 'decimal:2',
             'num_faltas' => 'integer',
+            'numero_nomina' => 'integer',
             'acredita_bono' => 'boolean',
             'valores_extra' => 'array',
             'campos_editados' => 'array',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CargaController;
 use App\Http\Controllers\Api\CatalogoController;
 use App\Http\Controllers\Api\ColumnaController;
 use App\Http\Controllers\Api\EmpleadoController;
+use App\Http\Controllers\Api\EstadisticaController;
 use App\Http\Controllers\Api\ExportacionController;
 use App\Http\Controllers\Api\HistoricoController;
 use App\Http\Controllers\Api\RegistroController;
@@ -38,6 +39,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
         // Dashboard (una fila = un empleado en una quincena)
         Route::get('registros', [RegistroController::class, 'index'])->can(P::RegistrosVer->value);
+        Route::get('registros/impresion', [RegistroController::class, 'impresion'])->can(P::RegistrosVer->value);   // v6: botón Imprimir
+        Route::get('estadisticas', [EstadisticaController::class, 'index'])->can(P::RegistrosVer->value);          // v6: Gráficas
         Route::get('registros/{registro}/resumen', [RegistroController::class, 'resumen'])->can(P::RegistrosVer->value);
         Route::patch('registros/{registro}', [RegistroController::class, 'actualizar'])->can(P::RegistrosEditar->value);
         Route::delete('registros/{registro}', [RegistroController::class, 'destroy'])->can(P::RegistrosEliminar->value);
@@ -69,6 +72,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::patch('columnas/{columna}', [ColumnaController::class, 'update']);
             Route::post('columnas/{columna}/mover', [ColumnaController::class, 'mover']);
             Route::patch('columnas/{columna}/tipo', [ColumnaController::class, 'cambiarTipo']);
+            Route::post('columnas/{columna}/alias', [ColumnaController::class, 'agregarAlias']);   // mapeo asistido
             Route::delete('columnas/{columna}', [ColumnaController::class, 'destroy']);
         });
 

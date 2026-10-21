@@ -32,7 +32,8 @@ class CargaEtlTest extends TestCase
         $carga = $this->postJson('/api/cargas', ['archivo' => $archivo, 'anio' => 2026])->assertCreated()->json('data');
         $this->assertSame('LISTA', $carga['estatus'], json_encode($carga['mensajes']));
 
-        return $this->postJson("/api/cargas/{$carga['id']}/aplicar", ['modo' => $modo])->assertOk()->json('resumen');
+        // confirmar: varias pruebas vuelven a cargar la misma quincena (aviso PERIODO_YA_CARGADO, v6)
+        return $this->postJson("/api/cargas/{$carga['id']}/aplicar", ['modo' => $modo, 'confirmar' => true])->assertOk()->json('resumen');
     }
 
     private function registroDe(string $nombre): Registro
@@ -61,14 +62,14 @@ class CargaEtlTest extends TestCase
 
         // El orden de columnas que ve la web es el del archivo de RH
         $claves = collect($this->getJson('/api/registros')->json('columnas'))->pluck('clave')->all();
-        $this->assertSame(['nombre_completo', 'fecha_ingreso', 'puesto', 'prima_vacacional'], array_slice($claves, 0, 4));
+        $this->assertSame(['numero_nomina', 'nombre_completo', 'fecha_ingreso', 'puesto', 'prima_vacacional'], array_slice($claves, 0, 5));
         $this->assertSame('1 de octubre al 13 de octubre de 2026', collect($this->getJson('/api/registros')->json('columnas'))->last()['etiqueta']);
     }
 
     public function test_periodo_sin_anio_usa_el_anio_indicado_al_subir(): void
     {
         $enc = $this->encabezados();
-        $enc[13] = '1 de octubre al 13 de octubre';
+        $enc[14] = '1 de octubre al 13 de octubre';
         $carga = $this->postJson('/api/cargas', ['archivo' => $this->excel([$this->fila('Ana López')], 'sin_anio.xlsx', $enc), 'anio' => 2027])->json('data');
         $this->assertSame('2027-10-01', $carga['periodo']['inicio']);
     }
@@ -132,7 +133,12 @@ class CargaEtlTest extends TestCase
         $enc = array_values(array_diff($this->encabezados(), ['Bono asistencia']));
         $carga = $this->postJson('/api/cargas', ['archivo' => $this->excel([$this->fila('Ana López', 2)], 'sin_bono.xlsx', $enc), 'anio' => 2026])->json('data');
         $this->assertContains('COLUMNA_AUSENTE', array_column($carga['mensajes'], 'codigo'));
-        $this->postJson("/api/cargas/{$carga['id']}/aplicar", ['modo' => 'REEMPLAZAR'])->assertOk();
+        $this->assertTrue($carga['requiere_confirmacion']);
+
+        // v5: una columna que falta se confirma expresamente antes de aplicar
+        $this->postJson("/api/cargas/{$carga['id']}/aplicar", ['modo' => 'REEMPLAZAR'])
+            ->assertStatus(422)->assertJsonPath('codigo', 'CONFIRMACION_REQUERIDA');
+        $this->postJson("/api/cargas/{$carga['id']}/aplicar", ['modo' => 'REEMPLAZAR', 'confirmar' => true])->assertOk();
 
         $reg = $this->registroDe('Ana López');
         $this->assertEquals(300, $reg->bono_asistencia);   // se conservó

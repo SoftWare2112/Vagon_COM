@@ -15,7 +15,7 @@ final class FiltrosTabla
         public readonly ?string $ingresoDesde = null,   // Y-m-d
         public readonly ?string $ingresoHasta = null,   // Y-m-d
         public readonly ?int $faltas = null,
-        public readonly string $orden = 'nombre_completo',
+        public readonly string $orden = 'numero_nomina',   // v6: mismo orden que el archivo de RH
         public readonly string $direccion = 'asc',
         public readonly int $porPagina = 50,
     ) {}
@@ -31,7 +31,7 @@ final class FiltrosTabla
             ingresoHasta: self::fecha($r->input('ingreso_hasta')),
             faltas: $r->filled('faltas') ? (int) $r->input('faltas') : null,
             // el repositorio valida el orden contra una lista blanca / el catálogo de columnas
-            orden: preg_match('/^[a-z0-9_:]{1,70}$/', (string) $r->input('orden')) ? $r->input('orden') : 'nombre_completo',
+            orden: preg_match('/^[a-z0-9_:]{1,70}$/', (string) $r->input('orden')) ? $r->input('orden') : 'numero_nomina',
             direccion: $r->input('direccion') === 'desc' ? 'desc' : 'asc',
             porPagina: min(max((int) $r->input('por_pagina', 50), 10), 200),
         );

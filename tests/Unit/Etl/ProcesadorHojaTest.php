@@ -19,7 +19,7 @@ class ProcesadorHojaTest extends TestCase
         'A' => 'Nombre', 'B' => 'Fecha de ingreso', 'C' => 'Puesto', 'D' => 'Prima vacacional', 'E' => 'Bono 3 meses',
         'F' => 'Bono puntualidad', 'G' => 'Bono asistencia', 'H' => 'Numero de faltas', 'I' => 'Detalles',
         'J' => 'Acredita para bono puntualidad', 'K' => 'Programado en Domingo', 'L' => 'Domingo 4', 'M' => 'Domingo 11',
-        'N' => '1 de octubre al 13 de octubre de 2026',
+        'N' => '1 de octubre al 13 de octubre de 2026', 'Z' => '#',
     ];
 
     private function fila(int $n, array $cambios = []): array
@@ -27,7 +27,7 @@ class ProcesadorHojaTest extends TestCase
         $base = [
             'A' => 'Reynaldo Ivan Antonio Ponce', 'B' => '15/01/2018', 'C' => 'Asesor', 'D' => '$1,200.00', 'E' => '$600.00',
             'F' => '$500.00', 'G' => '$300.00', 'H' => 1, 'I' => 'Falta el 07/10', 'J' => 1,
-            'K' => 1, 'L' => 1, 'M' => null, 'N' => '1 domingo pagado',
+            'K' => 1, 'L' => 1, 'M' => null, 'N' => '1 domingo pagado', 'Z' => 200 + $n,
         ];
 
         return ['fila' => $n, 'celdas' => array_merge($base, $cambios)];
