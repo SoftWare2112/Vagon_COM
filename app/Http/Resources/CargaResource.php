@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Etl\Dto\Mensaje;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,7 +27,17 @@ class CargaResource extends JsonResource
             'resumen' => $this->resumen,
             'subida' => $this->created_at->format('d/m/Y H:i'),
             'aplicada' => $this->aplicada_at?->format('d/m/Y H:i'),
-            'mensajes' => $this->whenLoaded('mensajes', fn () => $this->mensajes->map->only(['nivel', 'codigo', 'mensaje', 'fila', 'columna', 'celda', 'valor_recibido'])->values()),
+            'desconocidas' => $this->encabezados['desconocidas'] ?? [],   // columnas no reconocidas + sugerencias
+            'requiere_confirmacion' => $this->whenLoaded('mensajes', fn () => $this->mensajes->contains(fn ($m) => $this->confirmar($m))),
+            'mensajes' => $this->whenLoaded('mensajes', fn () => $this->mensajes->map(fn ($m) => [
+                ...$m->only(['nivel', 'codigo', 'mensaje', 'fila', 'columna', 'celda', 'valor_recibido']),
+                'confirmar' => $this->confirmar($m),
+            ])->values()),
         ];
+    }
+
+    private function confirmar($m): bool
+    {
+        return $m->nivel === Mensaje::ADVERTENCIA && in_array($m->codigo, Mensaje::CONFIRMAR, true);
     }
 }

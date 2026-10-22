@@ -48,11 +48,14 @@ class CargaController extends Controller
         return response()->json($this->service->previsualizar($carga));
     }
 
-    /** Paso 6-7: elegir modo y aplicar. */
+    /** Paso 6-7: elegir modo y aplicar (con `confirmar: true` si hay advertencias que lo piden). */
     public function aplicar(Request $request, Carga $carga): JsonResponse
     {
-        $request->validate(['modo' => ['required', Rule::enum(ModoSincronizacion::class)]]);
-        $carga = $this->service->aplicar($carga, ModoSincronizacion::from($request->input('modo')), $request->user());
+        $request->validate([
+            'modo' => ['required', Rule::enum(ModoSincronizacion::class)],
+            'confirmar' => ['sometimes', 'boolean'],   // RH revisó las advertencias marcadas
+        ]);
+        $carga = $this->service->aplicar($carga, ModoSincronizacion::from($request->input('modo')), $request->user(), $request->boolean('confirmar'));
 
         return response()->json(['message' => 'Carga aplicada correctamente.', 'resumen' => $carga->resumen]);
     }

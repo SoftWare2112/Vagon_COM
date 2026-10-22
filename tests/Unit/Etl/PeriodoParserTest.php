@@ -54,7 +54,6 @@ class PeriodoParserTest extends TestCase
     {
         $this->assertNull($this->rango('31 de febrero al 13 de marzo'));     // fecha imposible
         $this->assertNull($this->rango('13 de octubre al 1 de octubre'));    // fin antes que inicio
-        $this->assertNull($this->rango('1 de enero al 30 de junio'));        // demasiado largo para una nómina
     }
 
     public function test_no_confunde_otros_encabezados(): void
@@ -63,5 +62,20 @@ class PeriodoParserTest extends TestCase
             $this->assertFalse(PeriodoParser::pareceRango(Texto::normalizarEncabezado($h)), $h);
         }
         $this->assertTrue(PeriodoParser::pareceRango(Texto::normalizarEncabezado('1 de octubre al 13 de octubre de 2026')));
+    }
+
+    public function test_rango_largo_se_lee_y_la_duracion_la_valida_el_procesador(): void
+    {
+        // Encabezado real de la Q17: se lee para poder explicar "abarca 88 días" (ProcesadorHoja lo rechaza)
+        $p = (new PeriodoParser)->parsear(' 1 de Agosto AL 27 de Octubre', 2026);
+        $this->assertSame('2026-08-01', $p->inicio->format('Y-m-d'));
+        $this->assertSame(88, $p->dias());
+    }
+
+    public function test_abreviaturas_con_punto_y_mayusculas(): void
+    {
+        $p = (new PeriodoParser)->parsear('1 de Oct. AL 13 de Oct. de 2026', 2025);
+        $this->assertSame('2026-10-13', $p->fin->format('Y-m-d'));
+        $this->assertSame(13, $p->dias());
     }
 }

@@ -10,6 +10,7 @@ namespace App\Services\Etl\Dto;
  *  - domingos: ['K' => ['dia' => 16, 'etiqueta' => 'Domingo 16'], ...]
  *  - columnaPeriodo / etiquetaPeriodo: "12 de agosto al 27 de agosto"
  *  - ausentes: claves conocidas que NO vienen en este archivo (no se tocan al aplicar)
+ *  - sinEncabezado: columnas del Excel sin título (se ignoran; si traen datos se avisa)
  */
 final class MapaColumnas
 {
@@ -21,6 +22,7 @@ final class MapaColumnas
         public readonly array $tipos = [],
         public readonly array $extras = [],
         public readonly array $ausentes = [],
+        public readonly array $sinEncabezado = [],
     ) {}
 
     public function columnaDe(string $campo): ?string
@@ -40,6 +42,7 @@ final class MapaColumnas
             'columna_periodo' => $this->columnaPeriodo,
             'etiqueta_periodo' => $this->etiquetaPeriodo,
             'ausentes' => $this->ausentes,
+            'sin_encabezado' => $this->sinEncabezado,
         ];
     }
 }

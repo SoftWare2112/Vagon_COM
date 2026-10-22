@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\Columna;
 use App\Services\Columnas\CambioTipoColumna;
+use App\Services\Etl\HeaderMapper;
 use App\Support\ConversorTipo;
+use App\Support\Texto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,6 +83,31 @@ class ColumnaController extends Controller
         ]);
 
         return response()->json($servicio->ejecutar($columna, $datos['tipo'], (bool) ($datos['simular'] ?? false), (bool) ($datos['forzar'] ?? false)));
+    }
+
+    /**
+     * Mapeo asistido (v5): "esta columna del Excel es Número de faltas". Guarda el encabezado como
+     * alias, así la próxima carga lo reconoce sola. body {alias: "# Faltas Q"}
+     */
+    public function agregarAlias(Request $request, Columna $columna): JsonResponse
+    {
+        $alias = Texto::limpiar($request->validate(['alias' => ['required', 'string', 'max:100']])['alias']);
+        abort_if(! in_array($columna->origen, ['sistema', 'personalizada'], true), 422, 'Esta columna no admite alias.');
+        abort_if(Texto::claveEncabezado($alias) === '', 422, 'El encabezado está vacío.');
+
+        $actual = (new HeaderMapper(Columna::paraEtl()))->clasificar($alias);
+        abort_if($actual['tipo'] === 'campo' && $actual['clave'] !== $columna->clave, 422,
+            "'{$alias}' ya se reconoce como otra columna.");
+
+        $lista = $columna->alias ?? [];
+        if (! in_array($alias, $lista, true)) {
+            $antes = $lista;
+            $lista[] = $alias;
+            $columna->update(['alias' => $lista]);
+            AuditLog::registrar('EDITAR', 'Columna', $columna->id, ['alias' => $antes], ['alias' => $lista]);
+        }
+
+        return response()->json($columna);
     }
 
     /** Mover a otra posición: body {orden} */

@@ -19,7 +19,7 @@ class CatalogoController extends Controller
     public function periodos(): JsonResponse
     {
         return response()->json(Periodo::orderByDesc('fecha_inicio')->get()->map(fn ($p) => [
-            'id' => $p->id, 'etiqueta' => $p->etiqueta.' '.$p->fecha_fin->format('Y'),
+            'id' => $p->id, 'etiqueta' => $p->nombre(), 'ejercicio' => $p->ejercicio, 'numero' => $p->numero,
         ]));
     }
 

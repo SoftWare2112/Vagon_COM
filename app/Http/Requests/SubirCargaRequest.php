@@ -16,8 +16,14 @@ class SubirCargaRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // mimes valida el contenido real (MIME), no solo la extensión
-            'archivo' => ['required', 'file', 'mimes:xlsx,xls', 'max:'.config('reportes.etl.max_kb', 5120)],
+            // mimes valida el contenido real (MIME), no solo la extensión. El PDF se detecta antes
+            // para explicar por qué no sirve (es una impresión: no tiene celdas ni columnas reales).
+            'archivo' => ['bail', 'required', 'file', function (string $attr, $archivo, \Closure $fail) {
+                $ext = strtolower($archivo->getClientOriginalExtension());
+                if ($ext === 'pdf' || $archivo->getMimeType() === 'application/pdf') {
+                    $fail('El PDF es solo para imprimir y no se puede cargar: no tiene celdas ni columnas, y un dato podría quedar en la columna equivocada. Sube el Excel original (.xlsx) con el que se generó.');
+                }
+            }, 'mimes:xlsx,xls', 'max:'.config('reportes.etl.max_kb', 10240)],
             'anio' => ['nullable', 'integer', 'between:2020,2100'],
             'hoja' => ['nullable', 'string', 'max:31'],   // 31 = largo máximo de un nombre de hoja en Excel
             'periodo_inicio' => ['nullable', 'required_with:periodo_fin', 'date_format:d/m/Y'],
@@ -28,8 +34,8 @@ class SubirCargaRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'archivo.mimes' => 'Archivo incorrecto: solo se aceptan archivos de Excel (.xlsx). Word, PowerPoint y .odt no son válidos.',
-            'archivo.max' => 'El archivo supera el tamaño máximo permitido (5 MB).',
+            'archivo.mimes' => 'Archivo incorrecto: solo se aceptan archivos de Excel (.xlsx). PDF, Word, PowerPoint y .odt no son válidos.',
+            'archivo.max' => 'El archivo supera el tamaño máximo permitido ('.round(config('reportes.etl.max_kb', 10240) / 1024).' MB).',
         ];
     }
 

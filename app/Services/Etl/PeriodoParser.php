@@ -14,6 +14,7 @@ use DateTimeImmutable;
  *   "27 de diciembre de 2026 al 9 de enero de 2027" (cruza de año)
  *   "01/10/2026 al 13/10/2026" · "1/10 al 13/10"  (numérico)
  * El periodo es el rango de corte de nómina: no se asume que sea del 1 al 15.
+ * Mayúsculas, saltos de línea y abreviaturas con punto ("1 de Oct. AL 13 de Oct.") se aceptan.
  */
 final class PeriodoParser
 {
@@ -72,10 +73,10 @@ final class PeriodoParser
 
         $inicio = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $aIni, $mIni, $dIni));
         $fin = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $aFin, $mFin, $dFin));
-        $dias = $inicio->diff($fin)->days;
 
-        // Un periodo de nómina va de 1 a 31 días; otra cosa es un error de captura
-        if ($inicio > $fin || $dias > 31) {
+        // La duración NO se valida aquí: ProcesadorHoja la revisa y explica el problema
+        // ("abarca 88 días") en lugar de decir solo "no se detectó".
+        if ($inicio > $fin) {
             return null;
         }
 

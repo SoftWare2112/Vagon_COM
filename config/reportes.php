@@ -24,8 +24,10 @@ return [
 
     // ETL
     'etl' => [
-        'filas_esperadas' => 48,           // solo genera ADVERTENCIA si no coincide
-        'max_kb' => 5120,                  // 5 MB
+        'filas_esperadas' => 48,           // solo genera ADVERTENCIA si no coincide (también en Ajustes)
+        'max_kb' => 10240,                 // 10 MB (un logotipo en alta resolución pesa)
+        'periodo_dias_min' => 13,          // duración normal de una quincena; fuera de rango RH confirma
+        'periodo_dias_max' => 16,          // más de 31 días es error (p. ej. "1 de agosto al 27 de octubre")
         'disco' => 'local',                // storage/app/private
         'carpeta' => 'cargas',
         'max_faltas' => 31,

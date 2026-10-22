@@ -14,7 +14,20 @@ final class ResultadoProcesamiento
         public readonly ?Periodo $periodo,
         public readonly array $filas,
         public readonly array $mensajes,
+        public readonly array $desconocidas = [],   // columnas no reconocidas + sugerencias (mapeo asistido)
     ) {}
+
+    /** El mismo resultado con mensajes adicionales (p. ej. validaciones contra la BD). */
+    public function conMensajes(array $extra): self
+    {
+        return new self($this->mapa, $this->periodo, $this->filas, [...$this->mensajes, ...$extra], $this->desconocidas);
+    }
+
+    /** ¿Hay advertencias que RH debe confirmar antes de aplicar? */
+    public function requiereConfirmacion(): bool
+    {
+        return array_filter($this->mensajes, fn (Mensaje $m) => $m->requiereConfirmacion()) !== [];
+    }
 
     public function errores(): array
     {

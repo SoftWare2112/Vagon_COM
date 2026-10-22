@@ -6,10 +6,14 @@ import { Modal } from '../../components/Modal';
 import { Aviso } from '../../components/Aviso';
 import { useOnline } from '../../hooks/useOnline';
 import { useAuth } from '../../auth/AuthContext';
-import type { Carga, MensajeCarga } from '../../types';
+import { esFechaValida, mascaraFecha } from '../../utils/formato';
+import type { Carga, ColumnaCatalogo, ColumnaDesconocida, TipoColumna } from '../../types';
 
 type Paso = 'elegir' | 'resultado' | 'listo';
 const EXT_OK = /\.(xlsx|xls)$/i;
+const MAX_MB = 10;
+/** Errores que se resuelven escribiendo las fechas de la quincena en el asistente. */
+const ERRORES_PERIODO = ['PERIODO_NO_DETECTADO', 'PERIODO_INVALIDO', 'PERIODO_FECHAS_DISTINTAS', 'DOMINGO_FUERA_DE_PERIODO'];
 
 /**
  * Asistente ETL: 1) elegir archivo  2) validar (errores con celda | advertencias editables)
@@ -29,9 +33,17 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
   const [modo, setModo] = useState<'REEMPLAZAR' | 'MANTENER' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resumenFinal, setResumenFinal] = useState<Record<string, number> | null>(null);
+  // Fechas de la quincena escritas a mano (dd/mm/aaaa) cuando el encabezado del periodo está mal
+  const [fechaIni, setFechaIni] = useState('');
+  const [fechaFin, setFechaFin] = useState('');
+  const [confirmado, setConfirmado] = useState(false);
+
+  const fechasListas = esFechaValida(fechaIni) && esFechaValida(fechaFin);
+  const periodoManual = fechasListas ? { inicio: fechaIni, fin: fechaFin } : undefined;
 
   const reiniciar = () => {
     setPaso('elegir'); setArchivo(null); setCarga(null); setModo(null); setError(null); setProgreso(0); setResumenFinal(null); setHoja(undefined);
+    setFechaIni(''); setFechaFin(''); setConfirmado(false);
   };
   const cerrar = () => {
     if (carga?.estatus === 'LISTA' && paso !== 'listo') void cargasApi.descartar(carga.id).catch(() => undefined);
@@ -42,12 +54,16 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
   const elegir = (f: File | undefined) => {
     setError(null);
     if (!f) return;
-    if (!EXT_OK.test(f.name)) {
-      setError('Archivo incorrecto: selecciona un archivo de Excel (.xlsx). No se aceptan Word, PowerPoint ni .odt.');
+    if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
+      setError('El PDF es solo para imprimir y no se puede cargar: no tiene celdas ni columnas, y un dato podría quedar en la columna equivocada. Sube el Excel original (.xlsx) con el que se generó.');
       return;
     }
-    if (f.size > 5 * 1024 * 1024) {
-      setError('El archivo supera 5 MB.');
+    if (!EXT_OK.test(f.name)) {
+      setError('Archivo incorrecto: selecciona un archivo de Excel (.xlsx). No se aceptan PDF, Word, PowerPoint ni .odt.');
+      return;
+    }
+    if (f.size > MAX_MB * 1024 * 1024) {
+      setError(`El archivo supera ${MAX_MB} MB.`);
       return;
     }
     setArchivo(f);
@@ -58,21 +74,21 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
   const subir = useMutation({
     mutationFn: (hojaElegida?: string) => {
       if (!navigator.onLine) throw new Error('offline');
-      return cargasApi.subir(archivo!, anio, setProgreso, hojaElegida ?? hoja);
+      return cargasApi.subir(archivo!, anio, setProgreso, hojaElegida ?? hoja, periodoManual);
     },
-    onSuccess: (c) => { setCarga(c); setPaso('resultado'); },
+    onSuccess: (c) => { setCarga(c); setPaso('resultado'); setConfirmado(false); },
     onError: (e) => setError(e instanceof Error && e.message === 'offline'
       ? 'Sin conexión: no se puede cargar el archivo. Conserva el archivo seleccionado y reintenta cuando vuelva la red.'
       : mensajeDeError(e)),
   });
 
-  /** Volver a validar el mismo archivo leyendo otra hoja del libro. */
-  const validarHoja = (nombre: string) => {
+  /** Volver a validar el mismo archivo (otra hoja, fechas escritas a mano o columnas recién asignadas). */
+  const revalidar = (nombreHoja?: string) => {
     if (carga?.estatus === 'LISTA') void cargasApi.descartar(carga.id).catch(() => undefined);
-    setHoja(nombre);
+    if (nombreHoja) setHoja(nombreHoja);
     setCarga(null);
     setPaso('elegir');
-    subir.mutate(nombre);
+    subir.mutate(nombreHoja);
   };
 
   const preview = useQuery({
@@ -82,7 +98,7 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
   });
 
   const aplicar = useMutation({
-    mutationFn: () => cargasApi.aplicar(carga!.id, modo!),
+    mutationFn: () => cargasApi.aplicar(carga!.id, modo!, confirmado),
     onSuccess: (r) => {
       setResumenFinal(r.resumen);
       setPaso('listo');
@@ -94,9 +110,15 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
 
   const errores = carga?.mensajes?.filter((m) => m.nivel === 'ERROR') ?? [];
   const advertencias = carga?.mensajes?.filter((m) => m.nivel === 'ADVERTENCIA') ?? [];
-  const desconocidas = advertencias.filter((m) => m.codigo === 'ENCABEZADO_DESCONOCIDO');
+  const porConfirmar = advertencias.filter((m) => m.confirmar);
+  const normales = advertencias.filter((m) => !m.confirmar);
+  const desconocidas = carga?.desconocidas ?? [];
+  const errorDePeriodo = errores.some((m) => ERRORES_PERIODO.includes(m.codigo));
   const previa = preview.data;
   const modoElegido = modo ?? previa?.modo_predeterminado ?? null;
+  const faltaConfirmar = porConfirmar.length > 0 && !confirmado;
+  const p = carga?.periodo;
+  const nombrePeriodo = p ? `${p.numero ? `Periodo ${p.numero}${p.ejercicio ? ` de ${p.ejercicio}` : ''} · ` : ''}${p.etiqueta}` : 'periodo no detectado';
 
   return (
     <Modal titulo="Cargar reporte de Excel" abierto={abierto} onCerrar={cerrar} ancho="lg"
@@ -109,7 +131,8 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
         )}
         {paso === 'resultado' && errores.length > 0 && <button className="btn" onClick={reiniciar}>Subir archivo corregido</button>}
         {paso === 'resultado' && carga?.estatus === 'LISTA' && (
-          <button className="btn" disabled={!modoElegido || aplicar.isPending}
+          <button className="btn" disabled={!modoElegido || aplicar.isPending || faltaConfirmar}
+            title={faltaConfirmar ? 'Primero confirma las advertencias marcadas' : undefined}
             onClick={() => { setModo(modoElegido); aplicar.mutate(); }}>
             {aplicar.isPending ? 'Aplicando…' : `Aplicar (${modoElegido === 'REEMPLAZAR' ? 'Reemplazar' : 'Mantener'})`}
           </button>
@@ -128,21 +151,25 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
             accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             onChange={(e) => elegir(e.target.files?.[0])} />
           <p><strong>{archivo ? archivo.name : 'Arrastra el archivo aquí o toca para seleccionarlo'}</strong></p>
-          <p className="tenue">Solo Excel (.xlsx), máximo 5 MB</p>
+          <p className="tenue">Solo Excel (.xlsx), máximo {MAX_MB} MB. El PDF no sirve: sube el Excel original.</p>
           <label onClick={(e) => e.stopPropagation()} title="Si el encabezado trae el año (p. ej. '1 de octubre al 13 de octubre de 2026'), se usa ese">Año, si el encabezado del periodo no lo trae{' '}
             <input type="number" min={2020} max={2100} value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ width: 90 }} />
           </label>
+          <details onClick={(e) => e.stopPropagation()} open={fechasListas || undefined}>
+            <summary className="tenue">Escribir las fechas de la quincena (si el encabezado del periodo está mal)</summary>
+            <FechasPeriodo ini={fechaIni} fin={fechaFin} onIni={setFechaIni} onFin={setFechaFin} />
+          </details>
         </div>
       )}
 
       {paso === 'resultado' && carga && (
         <>
-          <p><strong>{carga.archivo}</strong>{carga.hoja ? ` · hoja "${carga.hoja}"` : ''} · {carga.filas_total} filas · {carga.periodo?.etiqueta ?? 'periodo no detectado'}</p>
+          <p><strong>{carga.archivo}</strong>{carga.hoja ? ` · hoja "${carga.hoja}"` : ''} · {carga.filas_total} filas · {nombrePeriodo}</p>
 
           {(carga.hojas?.length ?? 0) > 1 && (
             <div className="editor-inline bloque">
               <label>El libro tiene {carga.hojas!.length} hojas. Hoja a leer
-                <select value={carga.hoja ?? ''} onChange={(e) => validarHoja(e.target.value)} style={{ width: 'auto' }}>
+                <select value={carga.hoja ?? ''} onChange={(e) => revalidar(e.target.value)} style={{ width: 'auto' }}>
                   {!carga.hoja && <option value="">Elige una hoja…</option>}
                   {carga.hojas!.map((h) => <option key={h} value={h}>{h}</option>)}
                 </select>
@@ -163,19 +190,37 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
             </>
           )}
 
-          {desconocidas.length > 0 && puede('columnas.gestionar') && (
-            <ColumnasNuevas mensajes={desconocidas} onCreadas={() => {
-              if (carga.estatus === 'LISTA') void cargasApi.descartar(carga.id).catch(() => undefined);
-              setCarga(null); setPaso('elegir'); subir.mutate(undefined);
-            }} />
+          {errorDePeriodo && (
+            <div className="bloque">
+              <strong>Escribe las fechas correctas de la quincena{p?.numero ? ` ${p.numero}` : ''} y valida de nuevo</strong>
+              <p className="tenue">Se usarán en lugar del encabezado del archivo; la quincena quedará nombrada con estas fechas.</p>
+              <FechasPeriodo ini={fechaIni} fin={fechaFin} onIni={setFechaIni} onFin={setFechaFin} />
+              <button className="btn btn-sm" disabled={!fechasListas || subir.isPending} onClick={() => revalidar()}>
+                {subir.isPending ? 'Validando…' : 'Validar con estas fechas'}
+              </button>
+            </div>
           )}
+
+          {desconocidas.length > 0 && (puede('columnas.gestionar')
+            ? <ColumnasNoReconocidas desconocidas={desconocidas} onListo={() => revalidar()} />
+            : <Aviso tipo="advertencia">El archivo trae {desconocidas.length} columna(s) que la plataforma no reconoce ({desconocidas.map((d) => d.encabezado).join(', ')}). Pide a un administrador que las asigne.</Aviso>)}
 
           {carga.estatus === 'LISTA' && (
             <>
-              {advertencias.length > 0 && (
-                <details open className="bloque">
-                  <summary>{advertencias.length} advertencia(s) — no bloquean la carga</summary>
-                  <ul className="lista-mensajes">{advertencias.map((m, i) => <li key={i}>{m.celda && <span className="mono">{m.celda} </span>}{m.mensaje}</li>)}</ul>
+              {porConfirmar.length > 0 && (
+                <div className="bloque aviso-advertencia">
+                  <strong>Revisa antes de aplicar ({porConfirmar.length})</strong>
+                  <ul className="lista-mensajes">{porConfirmar.map((m, i) => <li key={i}>{m.celda && <span className="mono">{m.celda} </span>}{m.mensaje}</li>)}</ul>
+                  <label className="check">
+                    <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />{' '}
+                    Revisé estas advertencias y quiero aplicar la carga así
+                  </label>
+                </div>
+              )}
+              {normales.length > 0 && (
+                <details className="bloque">
+                  <summary>{normales.length} aviso(s) informativo(s)</summary>
+                  <ul className="lista-mensajes">{normales.map((m, i) => <li key={i}>{m.celda && <span className="mono">{m.celda} </span>}{m.mensaje}</li>)}</ul>
                 </details>
               )}
               {previa?.quincena_nueva && <Aviso tipo="info">Es una quincena nueva: se creará {previa.periodo.etiqueta} y las quincenas anteriores no se tocan.</Aviso>}
@@ -223,45 +268,87 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
   );
 }
 
+/** Dos campos dd/mm/aaaa para las fechas de la quincena. */
+function FechasPeriodo({ ini, fin, onIni, onFin }: { ini: string; fin: string; onIni: (v: string) => void; onFin: (v: string) => void }) {
+  return (
+    <div className="editor-inline">
+      <label>Del
+        <input inputMode="numeric" placeholder="dd/mm/aaaa" value={ini} onChange={(e) => onIni(mascaraFecha(e.target.value))} />
+      </label>
+      <label>Al
+        <input inputMode="numeric" placeholder="dd/mm/aaaa" value={fin} onChange={(e) => onFin(mascaraFecha(e.target.value))} />
+      </label>
+    </div>
+  );
+}
+
+const TIPOS_NUEVA: { valor: TipoColumna; texto: string }[] = [
+  { valor: 'texto', texto: 'Texto' }, { valor: 'dinero', texto: 'Dinero ($)' }, { valor: 'decimal', texto: 'Número' },
+  { valor: 'entero', texto: 'Entero' }, { valor: 'fecha', texto: 'Fecha' }, { valor: 'booleano', texto: 'Sí / No' },
+];
+
 /**
- * El archivo trae columnas que la plataforma no conoce: RH puede crearlas aquí mismo
- * (se agregan al final; luego se pueden mover en Ajustes > Columnas) y volver a validar.
+ * Mapeo asistido: por cada encabezado que la plataforma no reconoció, RH decide si es una columna
+ * existente (se guarda como otro nombre de esa columna y la próxima vez se reconoce sola), si es
+ * una columna nueva, o si se ignora. Después se valida el archivo de nuevo.
  */
-function ColumnasNuevas({ mensajes, onCreadas }: { mensajes: MensajeCarga[]; onCreadas: () => void }) {
-  const [tipos, setTipos] = useState<Record<string, string>>({});
+function ColumnasNoReconocidas({ desconocidas, onListo }: { desconocidas: ColumnaDesconocida[]; onListo: () => void }) {
+  const { data: catalogo = [] } = useQuery({ queryKey: ['columnas'], queryFn: columnasApi.listar });
+  // valor: "asignar:<clave>" | "crear:<tipo>" | "ignorar"
+  const [decision, setDecision] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const crear = useMutation({
+
+  const asignables = catalogo.filter((c: ColumnaCatalogo) => c.activa && (c.origen === 'sistema' || c.origen === 'personalizada'));
+  const valorDe = (d: ColumnaDesconocida) => decision[d.columna] ?? (d.sugerencias[0] ? `asignar:${d.sugerencias[0].clave}` : 'ignorar');
+
+  const guardar = useMutation({
     mutationFn: async () => {
-      for (const m of mensajes) {
-        const etiqueta = m.valor_recibido ?? m.columna ?? '';
-        if (tipos[etiqueta] === 'ignorar') continue;
-        await columnasApi.crear({ etiqueta, tipo: (tipos[etiqueta] ?? 'texto') as never });
+      for (const d of desconocidas) {
+        const [accion, dato] = valorDe(d).split(':');
+        if (accion === 'asignar') {
+          const col = asignables.find((c) => c.clave === dato);
+          if (col) await columnasApi.agregarAlias(col.id, d.encabezado);
+        } else if (accion === 'crear') {
+          await columnasApi.crear({ etiqueta: d.encabezado, tipo: dato as TipoColumna });
+        }
       }
     },
-    onSuccess: onCreadas,
+    onSuccess: onListo,
     onError: (e) => setError(mensajeDeError(e)),
   });
 
   return (
-    <details className="bloque" open>
-      <summary>{mensajes.length} columna(s) nueva(s) en el archivo</summary>
+    <div className="bloque">
+      <strong>{desconocidas.length} columna(s) del archivo no se reconocieron</strong>
+      <p className="tenue">Indica qué es cada una. Si eliges una columna existente, ese encabezado se recordará y la próxima vez se reconocerá solo.</p>
       {error && <Aviso tipo="error">{error}</Aviso>}
       <ul className="lista-mensajes">
-        {mensajes.map((m) => {
-          const etiqueta = m.valor_recibido ?? m.columna ?? '';
+        {desconocidas.map((d) => {
+          const sugeridas = new Set(d.sugerencias.map((s) => s.clave));
           return (
-            <li key={etiqueta} className="editor-inline">
-              <strong>{etiqueta}</strong>
-              <select value={tipos[etiqueta] ?? 'texto'} onChange={(e) => setTipos({ ...tipos, [etiqueta]: e.target.value })} style={{ width: 'auto' }}>
-                <option value="texto">Texto</option><option value="dinero">Dinero ($)</option><option value="decimal">Número</option>
-                <option value="entero">Entero</option><option value="fecha">Fecha</option><option value="booleano">Sí / No</option>
-                <option value="ignorar">No crear (ignorar)</option>
+            <li key={d.columna} className="editor-inline">
+              <span><span className="mono">{d.columna}</span> <strong>{d.encabezado}</strong></span>
+              <select value={valorDe(d)} onChange={(e) => setDecision({ ...decision, [d.columna]: e.target.value })} style={{ width: 'auto' }}>
+                {d.sugerencias.length > 0 && (
+                  <optgroup label="Sugeridas">
+                    {d.sugerencias.map((s) => <option key={s.clave} value={`asignar:${s.clave}`}>Es «{s.etiqueta}»</option>)}
+                  </optgroup>
+                )}
+                <optgroup label="Otra columna existente">
+                  {asignables.filter((c) => !sugeridas.has(c.clave)).map((c) => <option key={c.clave} value={`asignar:${c.clave}`}>Es «{c.etiqueta}»</option>)}
+                </optgroup>
+                <optgroup label="Columna nueva">
+                  {TIPOS_NUEVA.map((t) => <option key={t.valor} value={`crear:${t.valor}`}>Crear columna nueva · {t.texto}</option>)}
+                </optgroup>
+                <option value="ignorar">Ignorar (no cargar)</option>
               </select>
             </li>
           );
         })}
       </ul>
-      <button className="btn btn-sm" disabled={crear.isPending} onClick={() => crear.mutate()}>Crear columnas y validar de nuevo</button>
-    </details>
+      <button className="btn btn-sm" disabled={guardar.isPending} onClick={() => guardar.mutate()}>
+        {guardar.isPending ? 'Guardando…' : 'Guardar y validar de nuevo'}
+      </button>
+    </div>
   );
 }

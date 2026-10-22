@@ -34,7 +34,12 @@ final class RowTransformer
         foreach ($mapa->campos as $col => $clave) {
             $tipo = $clave === 'nombre_completo' ? 'nombre' : ($mapa->tipos[$clave] ?? 'texto');
             $obligatoria = in_array($clave, ['nombre_completo', 'fecha_ingreso'], true);
-            [$valor, $msg] = $this->convertir($tipo, $celdas[$col] ?? null, $this->etiqueta($clave), $fila, $col, $obligatoria, $clave);
+            $celda = $celdas[$col] ?? null;
+            if ($clave === 'nombre_completo' && is_string($celda) && ($sinNumero = self::quitarNumeracion($celda)) !== $celda) {
+                $celda = $sinNumero;                 // "1. Alejandro Martínez" -> "Alejandro Martínez"
+                $datos['_numeracion_quitada'] = true;
+            }
+            [$valor, $msg] = $this->convertir($tipo, $celda, $this->etiqueta($clave), $fila, $col, $obligatoria, $clave);
             if ($msg) {
                 $mensajes[] = $msg;
             }
@@ -71,6 +76,16 @@ final class RowTransformer
         $datos['nombre_normalizado'] = Texto::normalizar($datos['nombre_completo'] ?? '');
 
         return [$datos, $mensajes];
+    }
+
+    /**
+     * Quita el consecutivo que RH pone antes del nombre: "1. Ana", "12) Ana", "3 - Ana", "4.Ana".
+     * Sin esto el nombre no pasaría la validación y, peor, cambiaría cada quincena (el número
+     * de la lista cambia) y la persona ya no coincidiría con su registro anterior.
+     */
+    public static function quitarNumeracion(string $nombre): string
+    {
+        return preg_replace('/^\s*\d{1,4}\s*(?:[.)\-]\s*|\s+)(?=\p{L})/u', '', $nombre) ?? $nombre;
     }
 
     /** @return array{0:mixed, 1:?Mensaje} */
