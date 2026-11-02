@@ -131,6 +131,18 @@ export interface Carga {
   mensajes?: MensajeCarga[];
   desconocidas?: ColumnaDesconocida[];
   requiere_confirmacion?: boolean;
+  grupos?: GrupoMensaje[];   // v7: mensajes agrupados en lenguaje de RH
+}
+
+/** v7: mensajes iguales juntos ("3 fechas no válidas: D8, D14, D20") con su solución. */
+export interface GrupoMensaje {
+  codigo: string;
+  tipo: 'error' | 'confirmar' | 'info';
+  titulo: string;
+  solucion: string;
+  cantidad: number;
+  ubicaciones: string[];
+  detalle: string[];
 }
 
 export interface Impacto {

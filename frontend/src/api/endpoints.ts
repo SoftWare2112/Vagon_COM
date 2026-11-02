@@ -72,6 +72,16 @@ export const cargasApi = {
   aplicar: async (id: number, modo: 'REEMPLAZAR' | 'MANTENER', confirmar = false) =>
     (await http.post<{ message: string; resumen: Record<string, number> }>(`/api/cargas/${id}/aplicar`, { modo, confirmar })).data,
   descartar: (id: number) => http.post(`/api/cargas/${id}/descartar`),
+  /** v7: el mismo Excel con las celdas con problema marcadas y una hoja con la lista. */
+  descargarErrores: async (id: number, archivo: string) => {
+    const r = await http.get(`/api/cargas/${id}/errores`, { responseType: 'blob' });
+    const url = URL.createObjectURL(r.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `errores_${archivo.replace(/\.[^.]+$/, '')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const exportacionesApi = {

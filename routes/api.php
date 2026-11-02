@@ -54,6 +54,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('cargas/{carga}/previsualizar', [CargaController::class, 'previsualizar']);
             Route::post('cargas/{carga}/aplicar', [CargaController::class, 'aplicar']);
             Route::post('cargas/{carga}/descartar', [CargaController::class, 'descartar']);
+            Route::get('cargas/{carga}/errores', [CargaController::class, 'errores']);   // v7: Excel con errores marcados
         });
 
         // Exportación

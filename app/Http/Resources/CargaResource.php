@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Services\Etl\Dto\Mensaje;
+use App\Support\GuiaMensajes;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,6 +29,8 @@ class CargaResource extends JsonResource
             'subida' => $this->created_at->format('d/m/Y H:i'),
             'aplicada' => $this->aplicada_at?->format('d/m/Y H:i'),
             'desconocidas' => $this->encabezados['desconocidas'] ?? [],   // columnas no reconocidas + sugerencias
+            // v7: los mensajes agrupados en lenguaje de RH (título, solución, celdas) para el asistente
+            'grupos' => $this->whenLoaded('mensajes', fn () => GuiaMensajes::agrupar($this->mensajes->map->only(['nivel', 'codigo', 'mensaje', 'fila', 'celda'])->all())),
             'requiere_confirmacion' => $this->whenLoaded('mensajes', fn () => $this->mensajes->contains(fn ($m) => $this->confirmar($m))),
             'mensajes' => $this->whenLoaded('mensajes', fn () => $this->mensajes->map(fn ($m) => [
                 ...$m->only(['nivel', 'codigo', 'mensaje', 'fila', 'columna', 'celda', 'valor_recibido']),

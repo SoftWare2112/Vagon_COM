@@ -166,7 +166,7 @@ label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; c
 }
 
 /* v5: confirmación de advertencias en el asistente de carga */
-.check { display: flex; align-items: center; gap: .4rem; margin-top: .5rem; font-weight: 600; cursor: pointer; }
+.check { display: flex; flex-direction: row; align-items: center; gap: .4rem; margin-top: .5rem; font-weight: 600; cursor: pointer; }
 .check input { width: auto; }
 
 /* ===== v6: vista de impresión (misma estructura que el archivo de RH) ===== */
@@ -228,3 +228,37 @@ label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; c
 .clave-linea { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
 .tabla-datos { margin-top: .5rem; font-size: .85rem; }
 .tabla-datos summary { cursor: pointer; color: var(--muted); }
+
+/* ===== v7: asistente de carga en 3 pasos ===== */
+.pasos { display: flex; gap: .5rem; list-style: none; padding: 0; margin: 0 0 1rem; counter-reset: paso; }
+.pasos li { flex: 1; display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: var(--muted); padding-bottom: .4rem; border-bottom: 3px solid var(--line); }
+.pasos li.actual { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+.pasos li.hecho { color: var(--ok-ink); border-bottom-color: var(--ok-ink); }
+.pasos-num { display: inline-grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--line); font-size: .75rem; }
+.pasos li.actual .pasos-num { background: var(--accent); color: var(--accent-ink); }
+.pasos li.hecho .pasos-num { background: var(--ok-bg); color: var(--ok-ink); }
+.zona-icono { font-size: 1.8rem; margin: 0; color: var(--muted); }
+.opciones-carga { margin-top: .75rem; text-align: left; font-size: .85rem; }
+.opciones-carga summary { cursor: pointer; color: var(--muted); }
+.resumen-carga { margin: 0 0 .75rem; color: var(--muted); }
+.resumen-carga strong { color: var(--ink); }
+.fila-opcion { flex-direction: row; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.estado-carga { border-radius: var(--radio); padding: .75rem 1rem; margin-bottom: .75rem; display: flex; flex-direction: column; gap: .35rem; }
+.estado-error { background: var(--bad-bg); color: var(--bad-ink); }
+.estado-revisar { background: var(--warn-bg); color: var(--warn-ink); }
+.estado-ok { background: var(--ok-bg); color: var(--ok-ink); }
+.tarjeta-grupo { border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radio); padding: .6rem .75rem; margin-bottom: .5rem; background: var(--surface); color: var(--ink); }
+.tarjeta-grupo.grupo-error { border-left-color: var(--bad-ink); }
+.tarjeta-grupo.grupo-confirmar { border-left-color: var(--warn-ink); }
+.tarjeta-grupo.compacta { margin: .25rem 0 0; padding: .45rem .6rem; }
+.tarjeta-grupo-titulo { font-weight: 600; display: flex; align-items: center; gap: .4rem; }
+.contador { background: var(--line); border-radius: 999px; padding: 0 .5rem; font-size: .75rem; font-weight: 600; }
+.ubicaciones { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; align-items: center; }
+.chip { background: var(--info-bg); color: var(--info-ink); border-radius: 4px; padding: 0 .35rem; font-size: .75rem; }
+.solucion { margin-top: .35rem; font-size: .9rem; }
+.tarjeta-grupo details { margin-top: .25rem; font-size: .8rem; color: var(--muted); }
+.tarjeta-grupo details summary { cursor: pointer; }
+.impacto-linea { color: var(--ink); }
+.detalles-tecnicos { margin-top: .75rem; font-size: .8rem; color: var(--muted); }
+.detalles-tecnicos summary { cursor: pointer; }
+.detalle-unico { margin-top: .3rem; font-size: .9rem; }

@@ -8,10 +8,12 @@ use App\Http\Requests\SubirCargaRequest;
 use App\Http\Resources\CargaResource;
 use App\Models\Carga;
 use App\Services\Etl\CargaService;
+use App\Services\Etl\ReporteErroresExcel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CargaController extends Controller
 {
@@ -58,6 +60,15 @@ class CargaController extends Controller
         $carga = $this->service->aplicar($carga, ModoSincronizacion::from($request->input('modo')), $request->user(), $request->boolean('confirmar'));
 
         return response()->json(['message' => 'Carga aplicada correctamente.', 'resumen' => $carga->resumen]);
+    }
+
+    /** v7: el archivo original con las celdas con problema marcadas y una hoja con la lista. */
+    public function errores(Carga $carga, ReporteErroresExcel $reporte): BinaryFileResponse
+    {
+        abort_if($carga->num_errores + $carga->num_advertencias === 0, 404, 'Esta carga no tiene errores ni avisos.');
+        $nombre = 'errores_'.pathinfo($carga->nombre_original, PATHINFO_FILENAME).'.xlsx';
+
+        return response()->download($reporte->generar($carga), $nombre)->deleteFileAfterSend();
     }
 
     public function descartar(Carga $carga): JsonResponse

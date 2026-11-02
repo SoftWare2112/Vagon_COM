@@ -41,7 +41,9 @@ class ReporteRhTest extends TestCase
             [$grid[3][13], $grid[3][14], $grid[3][15]] = ['Domingo 18', 'Domingo 25', '14 de Octubre AL 27 de Octubre'];
         }
         for ($i = 4, $n = count($grid); $i < $n; $i++) {
-            $grid[$i][0] = $desde + $i - 4;
+            if (! isset($cambios[$i - 4]['A'])) {   // un cambio explícito en "#" se respeta
+                $grid[$i][0] = $desde + $i - 4;
+            }
         }
 
         return $this->excelCuadricula($grid, $nombre);
@@ -156,5 +158,31 @@ class ReporteRhTest extends TestCase
         $this->assertSame('Gabriel Jiménez Rocha', $e['top_faltas'][0]['nombre']);
         $this->assertSame('P17', $e['serie'][0]['corto']);
         $this->assertSame('Asesor MSI', $e['por_puesto'][0]['puesto']);
+    }
+
+    public function test_v7_errores_agrupados_y_excel_con_celdas_marcadas(): void
+    {
+        $carga = $this->subir($this->archivo(cambios: [5 => ['A' => 200]]));   // fila 10 repite el 200
+
+        $this->assertSame('CON_ERRORES', $carga['estatus']);
+        $grupo = $carga['grupos'][0];
+        $this->assertSame(['NOMINA_REPETIDA', 'error', ['A10']], [$grupo['codigo'], $grupo['tipo'], $grupo['ubicaciones']]);
+        $this->assertSame('Números de nómina repetidos', $grupo['titulo']);
+
+        $res = $this->get("/api/cargas/{$carga['id']}/errores")->assertOk();
+        $libro = IOFactory::load($res->baseResponse->getFile()->getPathname());
+        $this->assertNotNull($libro->getSheetByName('Errores de carga'));
+        $this->assertSame('FFC7CE', $libro->getSheetByName('Hoja1')->getStyle('A10')->getFill()->getStartColor()->getRGB());
+        $this->assertStringContainsString('200', $libro->getSheetByName('Hoja1')->getComment('A10')->getText()->getPlainText());
+    }
+
+    public function test_v7_carga_limpia_de_quincena_nueva_no_pide_nada(): void
+    {
+        $carga = $this->subir($this->archivo());
+        $previa = $this->getJson("/api/cargas/{$carga['id']}/previsualizar")->assertOk()->json();
+
+        $this->assertTrue($previa['quincena_nueva']);
+        $this->assertFalse($previa['requiere_confirmacion']);
+        $this->assertSame([], array_values(array_filter($carga['grupos'], fn ($g) => $g['tipo'] !== 'info')));
     }
 }

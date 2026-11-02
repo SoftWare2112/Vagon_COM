@@ -162,7 +162,7 @@ export function DashboardPage() {
       <Modal titulo="Columnas del reporte" abierto={panelColumnas} onCerrar={() => setPanelColumnas(false)} ancho="lg">
         <ColumnasPanel />
       </Modal>
-      <CargaWizard abierto={wizard} onCerrar={() => setWizard(false)} />
+      <CargaWizard abierto={wizard} onCerrar={() => setWizard(false)} onListo={(texto) => setAviso({ tipo: 'exito', texto })} />
       <NuevoEmpleadoModal abierto={nuevo} periodoId={periodo?.id} onCerrar={() => setNuevo(false)} />
     </section>
   );

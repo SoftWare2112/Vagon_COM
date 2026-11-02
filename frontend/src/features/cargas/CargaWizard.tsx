@@ -7,43 +7,47 @@ import { Aviso } from '../../components/Aviso';
 import { useOnline } from '../../hooks/useOnline';
 import { useAuth } from '../../auth/AuthContext';
 import { esFechaValida, mascaraFecha } from '../../utils/formato';
-import type { Carga, ColumnaCatalogo, ColumnaDesconocida, TipoColumna } from '../../types';
+import type { Carga, ColumnaCatalogo, ColumnaDesconocida, GrupoMensaje, Previsualizacion, TipoColumna } from '../../types';
 
-type Paso = 'elegir' | 'resultado' | 'listo';
+type Paso = 'subir' | 'revisar' | 'listo';
+type Modo = 'REEMPLAZAR' | 'MANTENER';
 const EXT_OK = /\.(xlsx|xls)$/i;
 const MAX_MB = 10;
 /** Errores que se resuelven escribiendo las fechas de la quincena en el asistente. */
 const ERRORES_PERIODO = ['PERIODO_NO_DETECTADO', 'PERIODO_INVALIDO', 'PERIODO_FECHAS_DISTINTAS', 'DOMINGO_FUERA_DE_PERIODO'];
+const PASOS: { id: Paso; texto: string }[] = [{ id: 'subir', texto: 'Subir' }, { id: 'revisar', texto: 'Revisar' }, { id: 'listo', texto: 'Listo' }];
 
 /**
- * Asistente ETL: 1) elegir archivo  2) validar (errores con celda | advertencias editables)
- * 3) vista previa del impacto  4) elegir Reemplazar/Mantener  5) aplicar.
+ * Asistente de carga (v7): Subir -> Revisar -> Listo.
+ *  - Todo bien y quincena nueva: se carga directo, sin preguntar nada, y se avisa con un mensaje corto.
+ *  - Errores: se explican agrupados y en lenguaje simple, con la solución y el Excel marcado para descargar.
+ *  - Avisos a confirmar: un recuadro pequeño con "Cargar de todos modos" / "Cancelar".
+ *  - Mantener / Reemplazar: solo si la quincena YA tenía datos (en una nueva dan lo mismo).
+ *  Las validaciones del servidor no cambian: aquí solo cambia cómo se presentan.
  */
-export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar: () => void }) {
+export function CargaWizard({ abierto, onCerrar, onListo }: { abierto: boolean; onCerrar: () => void; onListo?: (texto: string) => void }) {
   const qc = useQueryClient();
   const online = useOnline();
   const { puede } = useAuth();
   const input = useRef<HTMLInputElement>(null);
-  const [paso, setPaso] = useState<Paso>('elegir');
+  const [paso, setPaso] = useState<Paso>('subir');
   const [archivo, setArchivo] = useState<File | null>(null);
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [progreso, setProgreso] = useState(0);
-  const [hoja, setHoja] = useState<string | undefined>(undefined);   // libros con varias hojas
+  const [hoja, setHoja] = useState<string | undefined>(undefined);
   const [carga, setCarga] = useState<Carga | null>(null);
-  const [modo, setModo] = useState<'REEMPLAZAR' | 'MANTENER' | null>(null);
+  const [previa, setPrevia] = useState<Previsualizacion | null>(null);
+  const [modo, setModo] = useState<Modo>('MANTENER');
   const [error, setError] = useState<string | null>(null);
-  const [resumenFinal, setResumenFinal] = useState<Record<string, number> | null>(null);
-  // Fechas de la quincena escritas a mano (dd/mm/aaaa) cuando el encabezado del periodo está mal
   const [fechaIni, setFechaIni] = useState('');
   const [fechaFin, setFechaFin] = useState('');
-  const [confirmado, setConfirmado] = useState(false);
 
   const fechasListas = esFechaValida(fechaIni) && esFechaValida(fechaFin);
   const periodoManual = fechasListas ? { inicio: fechaIni, fin: fechaFin } : undefined;
 
   const reiniciar = () => {
-    setPaso('elegir'); setArchivo(null); setCarga(null); setModo(null); setError(null); setProgreso(0); setResumenFinal(null); setHoja(undefined);
-    setFechaIni(''); setFechaFin(''); setConfirmado(false);
+    setPaso('subir'); setArchivo(null); setCarga(null); setPrevia(null); setModo('MANTENER'); setError(null); setProgreso(0);
+    setHoja(undefined); setFechaIni(''); setFechaFin('');
   };
   const cerrar = () => {
     if (carga?.estatus === 'LISTA' && paso !== 'listo') void cargasApi.descartar(carga.id).catch(() => undefined);
@@ -55,30 +59,68 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
     setError(null);
     if (!f) return;
     if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {
-      setError('El PDF es solo para imprimir y no se puede cargar: no tiene celdas ni columnas, y un dato podría quedar en la columna equivocada. Sube el Excel original (.xlsx) con el que se generó.');
+      setError('El PDF es solo para imprimir y no se puede cargar. Sube el Excel original (.xlsx).');
       return;
     }
     if (!EXT_OK.test(f.name)) {
-      setError('Archivo incorrecto: selecciona un archivo de Excel (.xlsx). No se aceptan PDF, Word, PowerPoint ni .odt.');
+      setError('Ese archivo no es de Excel. Selecciona un archivo .xlsx.');
       return;
     }
     if (f.size > MAX_MB * 1024 * 1024) {
-      setError(`El archivo supera ${MAX_MB} MB.`);
+      setError(`El archivo pesa más de ${MAX_MB} MB.`);
       return;
     }
     setArchivo(f);
     setHoja(undefined);
   };
 
-
-  const subir = useMutation({
-    mutationFn: (hojaElegida?: string) => {
-      if (!navigator.onLine) throw new Error('offline');
-      return cargasApi.subir(archivo!, anio, setProgreso, hojaElegida ?? hoja, periodoManual);
+  const aplicar = useMutation({
+    mutationFn: (p: { carga: Carga; modo: Modo; previa: Previsualizacion | null }) =>
+      // confirmar = true: el usuario ya vio los avisos (o no había ninguno)
+      cargasApi.aplicar(p.carga.id, p.modo, true).then((r) => ({ ...r, ...p })),
+    onSuccess: ({ resumen, carga: c, previa: pv }) => {
+      void qc.invalidateQueries({ queryKey: ['registros'] });
+      void qc.invalidateQueries({ queryKey: ['periodos'] });
+      void qc.invalidateQueries({ queryKey: ['estadisticas'] });
+      const nombre = nombrePeriodo(c);
+      const partes = [`${resumen.nuevos ?? 0} nuevos`, `${resumen.actualizados ?? 0} actualizados`];
+      if (resumen.eliminados) partes.push(`${resumen.eliminados} fuera de la vista`);
+      const texto = pv?.quincena_nueva
+        ? `${nombre} cargado: ${c.filas_total} empleados.`
+        : `${nombre} actualizado: ${partes.join(', ')}.`;
+      setPaso('listo');
+      onListo?.(texto);
+      reiniciar();
+      onCerrar();
     },
-    onSuccess: (c) => { setCarga(c); setPaso('resultado'); setConfirmado(false); },
+    onError: (e) => setError(mensajeDeError(e)),
+  });
+
+  /** Sube y valida; si no hay nada que decidir y la quincena es nueva, aplica directo. */
+  const subir = useMutation({
+    mutationFn: async (hojaElegida?: string) => {
+      if (!navigator.onLine) throw new Error('offline');
+      const c = await cargasApi.subir(archivo!, anio, setProgreso, hojaElegida ?? hoja, periodoManual);
+      const pv = c.estatus === 'LISTA' ? await cargasApi.previsualizar(c.id) : null;
+      return { c, pv };
+    },
+    onSuccess: ({ c, pv }) => {
+      setCarga(c);
+      setPrevia(pv);
+      setModo(pv?.modo_predeterminado ?? 'MANTENER');
+      const grupos = c.grupos ?? [];
+      const hayQueRevisar = c.estatus !== 'LISTA'
+        || grupos.some((g) => g.tipo === 'confirmar')
+        || (c.desconocidas?.length ?? 0) > 0
+        || !pv?.quincena_nueva;
+      if (hayQueRevisar) {
+        setPaso('revisar');
+      } else {
+        aplicar.mutate({ carga: c, modo: 'MANTENER', previa: pv });
+      }
+    },
     onError: (e) => setError(e instanceof Error && e.message === 'offline'
-      ? 'Sin conexión: no se puede cargar el archivo. Conserva el archivo seleccionado y reintenta cuando vuelva la red.'
+      ? 'Sin conexión a internet. Conserva el archivo y vuelve a intentarlo cuando regrese la red.'
       : mensajeDeError(e)),
   });
 
@@ -87,61 +129,54 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
     if (carga?.estatus === 'LISTA') void cargasApi.descartar(carga.id).catch(() => undefined);
     if (nombreHoja) setHoja(nombreHoja);
     setCarga(null);
-    setPaso('elegir');
+    setPrevia(null);
+    setError(null);
     subir.mutate(nombreHoja);
   };
 
-  const preview = useQuery({
-    queryKey: ['preview', carga?.id, carga?.num_advertencias],
-    queryFn: () => cargasApi.previsualizar(carga!.id),
-    enabled: carga?.estatus === 'LISTA',
-  });
-
-  const aplicar = useMutation({
-    mutationFn: () => cargasApi.aplicar(carga!.id, modo!, confirmado),
-    onSuccess: (r) => {
-      setResumenFinal(r.resumen);
-      setPaso('listo');
-      void qc.invalidateQueries({ queryKey: ['registros'] });
-      void qc.invalidateQueries({ queryKey: ['periodos'] });
-    },
+  const descargar = useMutation({
+    mutationFn: () => cargasApi.descargarErrores(carga!.id, carga!.archivo),
     onError: (e) => setError(mensajeDeError(e)),
   });
 
-  const errores = carga?.mensajes?.filter((m) => m.nivel === 'ERROR') ?? [];
-  const advertencias = carga?.mensajes?.filter((m) => m.nivel === 'ADVERTENCIA') ?? [];
-  const porConfirmar = advertencias.filter((m) => m.confirmar);
-  const normales = advertencias.filter((m) => !m.confirmar);
+  const grupos = carga?.grupos ?? [];
+  const deError = grupos.filter((g) => g.tipo === 'error');
+  const aConfirmar = grupos.filter((g) => g.tipo === 'confirmar' && g.codigo !== 'PERIODO_YA_CARGADO');
+  const informativos = grupos.filter((g) => g.tipo === 'info' && g.codigo !== 'ENCABEZADO_DESCONOCIDO' && g.codigo !== 'ENCABEZADO_AMBIGUO');
   const desconocidas = carga?.desconocidas ?? [];
-  const errorDePeriodo = errores.some((m) => ERRORES_PERIODO.includes(m.codigo));
-  const previa = preview.data;
-  const modoElegido = modo ?? previa?.modo_predeterminado ?? null;
-  const faltaConfirmar = porConfirmar.length > 0 && !confirmado;
-  const p = carga?.periodo;
-  const nombrePeriodo = p ? `${p.numero ? `Periodo ${p.numero}${p.ejercicio ? ` de ${p.ejercicio}` : ''} · ` : ''}${p.etiqueta}` : 'periodo no detectado';
+  const conErrores = carga !== null && carga.estatus !== 'LISTA';
+  const errorDePeriodo = deError.some((g) => ERRORES_PERIODO.includes(g.codigo));
+  const quincenaExistente = previa !== null && !previa.quincena_nueva;
+  const ocupado = subir.isPending || aplicar.isPending;
 
   return (
-    <Modal titulo="Cargar reporte de Excel" abierto={abierto} onCerrar={cerrar} ancho="lg"
+    <Modal titulo="Cargar reporte de Excel" abierto={abierto} onCerrar={cerrar} ancho="md"
       pie={<>
-        <button className="btn btn-sec" onClick={cerrar}>{paso === 'listo' ? 'Cerrar' : 'Cancelar'}</button>
-        {paso === 'elegir' && (
-          <button className="btn" disabled={!archivo || subir.isPending || !online} onClick={() => subir.mutate(undefined)}>
-            {subir.isPending ? `Validando… ${progreso}%` : 'Validar archivo'}
+        <button className="btn btn-sec" onClick={cerrar}>Cancelar</button>
+        {paso === 'subir' && (
+          <button className="btn" disabled={!archivo || ocupado || !online} onClick={() => subir.mutate(undefined)}>
+            {subir.isPending ? `Revisando… ${progreso}%` : aplicar.isPending ? 'Cargando…' : 'Cargar'}
           </button>
         )}
-        {paso === 'resultado' && errores.length > 0 && <button className="btn" onClick={reiniciar}>Subir archivo corregido</button>}
-        {paso === 'resultado' && carga?.estatus === 'LISTA' && (
-          <button className="btn" disabled={!modoElegido || aplicar.isPending || faltaConfirmar}
-            title={faltaConfirmar ? 'Primero confirma las advertencias marcadas' : undefined}
-            onClick={() => { setModo(modoElegido); aplicar.mutate(); }}>
-            {aplicar.isPending ? 'Aplicando…' : `Aplicar (${modoElegido === 'REEMPLAZAR' ? 'Reemplazar' : 'Mantener'})`}
+        {paso === 'revisar' && conErrores && <>
+          {(carga?.num_errores ?? 0) > 0 && (
+            <button className="btn btn-sec" disabled={descargar.isPending} onClick={() => descargar.mutate()}>
+              {descargar.isPending ? 'Preparando…' : 'Descargar errores en Excel'}
+            </button>
+          )}
+          <button className="btn" onClick={reiniciar}>Subir archivo corregido</button>
+        </>}
+        {paso === 'revisar' && !conErrores && carga && (
+          <button className="btn" disabled={ocupado} onClick={() => aplicar.mutate({ carga, modo, previa })}>
+            {aplicar.isPending ? 'Cargando…' : aConfirmar.length > 0 || desconocidas.length > 0 ? 'Cargar de todos modos' : 'Cargar'}
           </button>
         )}
       </>}>
+      <Pasos actual={paso} />
       {error && <Aviso tipo="error">{error}</Aviso>}
       {!online && <Aviso tipo="advertencia">Sin conexión a internet.</Aviso>}
 
-      {paso === 'elegir' && (
+      {paso === 'subir' && (
         <div className="zona-archivo"
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); elegir(e.dataTransfer.files[0]); }}
@@ -150,121 +185,152 @@ export function CargaWizard({ abierto, onCerrar }: { abierto: boolean; onCerrar:
           <input ref={input} type="file" hidden
             accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             onChange={(e) => elegir(e.target.files?.[0])} />
-          <p><strong>{archivo ? archivo.name : 'Arrastra el archivo aquí o toca para seleccionarlo'}</strong></p>
-          <p className="tenue">Solo Excel (.xlsx), máximo {MAX_MB} MB. El PDF no sirve: sube el Excel original.</p>
-          <label onClick={(e) => e.stopPropagation()} title="Si el encabezado trae el año (p. ej. '1 de octubre al 13 de octubre de 2026'), se usa ese">Año, si el encabezado del periodo no lo trae{' '}
-            <input type="number" min={2020} max={2100} value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ width: 90 }} />
-          </label>
-          <details onClick={(e) => e.stopPropagation()} open={fechasListas || undefined}>
-            <summary className="tenue">Escribir las fechas de la quincena (si el encabezado del periodo está mal)</summary>
+          <p className="zona-icono" aria-hidden="true">⬆</p>
+          <p><strong>{archivo ? archivo.name : 'Arrastra aquí el Excel de la quincena o toca para elegirlo'}</strong></p>
+          <p className="tenue">Archivo .xlsx de hasta {MAX_MB} MB</p>
+          <details className="opciones-carga" onClick={(e) => e.stopPropagation()} open={fechasListas || undefined}>
+            <summary>Opciones</summary>
+            <label title="Solo si el encabezado del periodo y el bloque Ejercicio no traen el año">Año de la quincena{' '}
+              <input type="number" min={2020} max={2100} value={anio} onChange={(e) => setAnio(Number(e.target.value))} style={{ width: 90 }} />
+            </label>
+            <p className="tenue">Fechas de la quincena (solo si el encabezado del periodo está mal):</p>
             <FechasPeriodo ini={fechaIni} fin={fechaFin} onIni={setFechaIni} onFin={setFechaFin} />
           </details>
         </div>
       )}
 
-      {paso === 'resultado' && carga && (
+      {paso === 'revisar' && carga && (
         <>
-          <p><strong>{carga.archivo}</strong>{carga.hoja ? ` · hoja "${carga.hoja}"` : ''} · {carga.filas_total} filas · {nombrePeriodo}</p>
+          <p className="resumen-carga"><strong>{carga.archivo}</strong> · {nombrePeriodo(carga)} · {carga.filas_total} empleados</p>
 
           {(carga.hojas?.length ?? 0) > 1 && (
-            <div className="editor-inline bloque">
-              <label>El libro tiene {carga.hojas!.length} hojas. Hoja a leer
-                <select value={carga.hoja ?? ''} onChange={(e) => revalidar(e.target.value)} style={{ width: 'auto' }}>
-                  {!carga.hoja && <option value="">Elige una hoja…</option>}
-                  {carga.hojas!.map((h) => <option key={h} value={h}>{h}</option>)}
-                </select>
-              </label>
-              <small className="tenue">Las demás hojas se ignoran y no se guardan.</small>
-            </div>
+            <label className="fila-opcion">El libro tiene {carga.hojas!.length} hojas. Leer la hoja{' '}
+              <select value={carga.hoja ?? ''} onChange={(e) => revalidar(e.target.value)} style={{ width: 'auto' }}>
+                {!carga.hoja && <option value="">Elige…</option>}
+                {carga.hojas!.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </label>
           )}
 
-          {errores.length > 0 && (
+          {conErrores && (
             <>
-              <Aviso tipo="error">Se encontraron {errores.length} error(es). No se aplicó ningún cambio. Corrige el archivo y vuelve a subirlo.</Aviso>
-              <div className="tabla-scroll"><table className="tabla tabla-compacta">
-                <thead><tr><th>Celda</th><th>Columna</th><th>Problema</th><th>Valor recibido</th></tr></thead>
-                <tbody>{errores.map((m, i) => (
-                  <tr key={i}><td className="mono">{m.celda ?? (m.fila ? `Fila ${m.fila}` : '—')}</td><td>{m.columna ?? '—'}</td><td>{m.mensaje}</td><td>{m.valor_recibido ?? ''}</td></tr>
-                ))}</tbody>
-              </table></div>
+              <div className="estado-carga estado-error">
+                <strong>No se pudo cargar el archivo</strong>
+                <span>Corrige {deError.length === 1 ? 'este punto' : `estos ${deError.length} puntos`} en tu Excel y vuelve a subirlo. No se guardó nada.</span>
+              </div>
+              {deError.map((g) => <TarjetaGrupo key={g.codigo} g={g} />)}
             </>
           )}
 
           {errorDePeriodo && (
             <div className="bloque">
-              <strong>Escribe las fechas correctas de la quincena{p?.numero ? ` ${p.numero}` : ''} y valida de nuevo</strong>
-              <p className="tenue">Se usarán en lugar del encabezado del archivo; la quincena quedará nombrada con estas fechas.</p>
+              <strong>¿Prefieres escribir las fechas de la quincena{carga.periodo?.numero ? ` ${carga.periodo.numero}` : ''}?</strong>
               <FechasPeriodo ini={fechaIni} fin={fechaFin} onIni={setFechaIni} onFin={setFechaFin} />
-              <button className="btn btn-sm" disabled={!fechasListas || subir.isPending} onClick={() => revalidar()}>
-                {subir.isPending ? 'Validando…' : 'Validar con estas fechas'}
+              <button className="btn btn-sm" disabled={!fechasListas || ocupado} onClick={() => revalidar()}>
+                {subir.isPending ? 'Revisando…' : 'Usar estas fechas'}
               </button>
             </div>
           )}
 
           {desconocidas.length > 0 && (puede('columnas.gestionar')
             ? <ColumnasNoReconocidas desconocidas={desconocidas} onListo={() => revalidar()} />
-            : <Aviso tipo="advertencia">El archivo trae {desconocidas.length} columna(s) que la plataforma no reconoce ({desconocidas.map((d) => d.encabezado).join(', ')}). Pide a un administrador que las asigne.</Aviso>)}
+            : <Aviso tipo="advertencia">Estas columnas no se reconocieron y no se cargarán: {desconocidas.map((d) => d.encabezado).join(', ')}.</Aviso>)}
 
-          {carga.estatus === 'LISTA' && (
+          {!conErrores && (
             <>
-              {porConfirmar.length > 0 && (
-                <div className="bloque aviso-advertencia">
-                  <strong>Revisa antes de aplicar ({porConfirmar.length})</strong>
-                  <ul className="lista-mensajes">{porConfirmar.map((m, i) => <li key={i}>{m.celda && <span className="mono">{m.celda} </span>}{m.mensaje}</li>)}</ul>
-                  <label className="check">
-                    <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />{' '}
-                    Revisé estas advertencias y quiero aplicar la carga así
-                  </label>
+              {aConfirmar.length > 0 && (
+                <div className="estado-carga estado-revisar">
+                  <strong>Revisa antes de cargar</strong>
+                  {aConfirmar.map((g) => <TarjetaGrupo key={g.codigo} g={g} compacta />)}
                 </div>
               )}
-              {normales.length > 0 && (
-                <details className="bloque">
-                  <summary>{normales.length} aviso(s) informativo(s)</summary>
-                  <ul className="lista-mensajes">{normales.map((m, i) => <li key={i}>{m.celda && <span className="mono">{m.celda} </span>}{m.mensaje}</li>)}</ul>
-                </details>
-              )}
-              {previa?.quincena_nueva && <Aviso tipo="info">Es una quincena nueva: se creará {previa.periodo.etiqueta} y las quincenas anteriores no se tocan.</Aviso>}
 
-              <h3>¿Cómo aplicar los datos?</h3>
-              {preview.isLoading && <p>Calculando impacto…</p>}
-              {previa && (
-                <div className="opciones-modo">
-                  {(['MANTENER', 'REEMPLAZAR'] as const).map((m) => {
-                    const imp = previa.impacto[m];
-                    return (
-                      <label key={m} className={`opcion-modo ${modoElegido === m ? 'activa' : ''}`}>
-                        <input type="radio" name="modo" checked={modoElegido === m} onChange={() => setModo(m)} />
-                        <strong>{m === 'MANTENER' ? 'Mantener información' : 'Reemplazar información'}</strong>
-                        <small>{m === 'MANTENER'
-                          ? 'Conserva lo creado, editado o eliminado en la web. Solo agrega nuevos y actualiza los campos que no se editaron.'
-                          : 'El Excel manda en esta quincena: sobrescribe ediciones de las columnas que vienen, restaura eliminados que vengan en el archivo y quita de la vista a quien no venga. Otras quincenas no se tocan.'}</small>
-                        <ul className="impacto">
-                          <li>Nuevos: <b>{imp.nuevos}</b></li>
-                          <li>Actualizados: <b>{imp.actualizados}</b></li>
-                          {m === 'REEMPLAZAR' && <li>Restaurados: <b>{imp.restaurados}</b></li>}
-                          {m === 'REEMPLAZAR' && <li className={imp.eliminados ? 'texto-peligro' : ''}>Saldrán de la vista: <b>{imp.eliminados}</b></li>}
-                          {m === 'MANTENER' && <li>Omitidos (eliminados en web): <b>{imp.omitidos}</b></li>}
-                        </ul>
-                        {m === 'REEMPLAZAR' && imp.detalle.eliminados?.length > 0 && (
-                          <small className="tenue">Ej.: {imp.detalle.eliminados.slice(0, 5).join(', ')}{imp.detalle.eliminados.length > 5 ? '…' : ''}</small>
-                        )}
-                      </label>
-                    );
-                  })}
+              {quincenaExistente && previa && (
+                <div className="bloque">
+                  <strong>Esta quincena ya tiene datos. ¿Cómo actualizarla?</strong>
+                  <div className="opciones-modo">
+                    {(['MANTENER', 'REEMPLAZAR'] as const).map((m) => {
+                      const imp = previa.impacto[m];
+                      return (
+                        <label key={m} className={`opcion-modo ${modo === m ? 'activa' : ''}`}>
+                          <input type="radio" name="modo" checked={modo === m} onChange={() => setModo(m)} />
+                          <strong>{m === 'MANTENER' ? 'Mantener lo editado en la web' : 'Reemplazar con el Excel'}</strong>
+                          <small>{m === 'MANTENER'
+                            ? 'Agrega nuevos y actualiza solo lo que no se corrigió a mano.'
+                            : 'El Excel manda: quien no venga en el archivo sale de la vista.'}</small>
+                          <small className="impacto-linea">
+                            {imp.nuevos} nuevos · {imp.actualizados} actualizados
+                            {m === 'REEMPLAZAR' && imp.eliminados > 0 && <b className="texto-peligro"> · {imp.eliminados} salen de la vista</b>}
+                          </small>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {aConfirmar.length === 0 && !quincenaExistente && desconocidas.length === 0 && (
+                <div className="estado-carga estado-ok"><strong>Todo listo para cargar</strong></div>
               )}
             </>
           )}
+
+          {informativos.length > 0 && (
+            <details className="detalles-tecnicos">
+              <summary>Detalles ({informativos.length})</summary>
+              <ul>{informativos.map((g) => <li key={g.codigo}>{g.titulo}{g.cantidad > 1 ? ` (${g.cantidad})` : ''}{g.solucion && g.solucion !== 'Solo informativo.' ? ` — ${g.solucion}` : ''}</li>)}</ul>
+            </details>
+          )}
         </>
       )}
-
-      {paso === 'listo' && resumenFinal && (
-        <Aviso tipo="exito">
-          Carga aplicada. Nuevos: {resumenFinal.nuevos} · Actualizados: {resumenFinal.actualizados} · Restaurados: {resumenFinal.restaurados} ·
-          Eliminados de la vista: {resumenFinal.eliminados} · Omitidos: {resumenFinal.omitidos}
-        </Aviso>
-      )}
     </Modal>
+  );
+}
+
+function nombrePeriodo(c: Carga): string {
+  const p = c.periodo;
+  if (!p) return 'periodo no detectado';
+  return p.numero ? `Periodo ${p.numero}${p.ejercicio ? ` de ${p.ejercicio}` : ''}` : p.etiqueta;
+}
+
+/** Barra de progreso de 3 pasos. */
+function Pasos({ actual }: { actual: Paso }) {
+  const i = PASOS.findIndex((p) => p.id === actual);
+  return (
+    <ol className="pasos" aria-label="Progreso de la carga">
+      {PASOS.map((p, j) => (
+        <li key={p.id} className={j < i ? 'hecho' : j === i ? 'actual' : ''} aria-current={j === i ? 'step' : undefined}>
+          <span className="pasos-num">{j < i ? '✓' : j + 1}</span>{p.texto}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Un problema agrupado: título, cuántas veces, dónde y cómo arreglarlo. */
+function TarjetaGrupo({ g, compacta = false }: { g: GrupoMensaje; compacta?: boolean }) {
+  const resto = g.cantidad - g.ubicaciones.length;
+  return (
+    <div className={`tarjeta-grupo grupo-${g.tipo} ${compacta ? 'compacta' : ''}`}>
+      <div className="tarjeta-grupo-titulo">
+        {g.titulo}{g.cantidad > 1 && <span className="contador">{g.cantidad}</span>}
+      </div>
+      {g.ubicaciones.length > 0 && (
+        <div className="ubicaciones">
+          {g.ubicaciones.map((u) => <span key={u} className="chip mono">{u}</span>)}
+          {resto > 0 && <span className="tenue"> y {resto} más</span>}
+        </div>
+      )}
+      {/* Un solo mensaje sin celda (p. ej. continuidad de nómina): su texto ya dice lo importante */}
+      {g.ubicaciones.length === 0 && g.cantidad === 1 && g.detalle[0] && <div className="detalle-unico">{g.detalle[0]}</div>}
+      {g.solucion && <div className="solucion">{g.solucion}</div>}
+      {g.detalle.length > 0 && !(g.ubicaciones.length === 0 && g.cantidad === 1) && (
+        <details>
+          <summary>Ver detalle</summary>
+          <ul>{g.detalle.map((d, i) => <li key={i}>{d}</li>)}</ul>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -347,7 +413,7 @@ function ColumnasNoReconocidas({ desconocidas, onListo }: { desconocidas: Column
         })}
       </ul>
       <button className="btn btn-sm" disabled={guardar.isPending} onClick={() => guardar.mutate()}>
-        {guardar.isPending ? 'Guardando…' : 'Guardar y validar de nuevo'}
+        {guardar.isPending ? 'Guardando…' : 'Guardar y revisar de nuevo'}
       </button>
     </div>
   );
