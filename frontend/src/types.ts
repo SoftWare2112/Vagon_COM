@@ -2,7 +2,9 @@ export type Permiso =
   | 'registros.ver' | 'registros.crear' | 'registros.editar' | 'registros.eliminar'
   | 'cargas.subir' | 'cargas.ver' | 'exportar'
   | 'historico.ver' | 'historico.restaurar' | 'columnas.gestionar'
-  | 'usuarios.gestionar' | 'ajustes.gestionar';
+  | 'usuarios.gestionar' | 'ajustes.gestionar'
+  | 'hojas.ver' | 'hojas.crear' | 'hojas.editar' | 'plantillas.gestionar'
+  | 'hojas.ver_todas' | 'informes.limpiar';
 
 export interface Usuario {
   id: number;
@@ -115,7 +117,13 @@ export interface PeriodoCarga {
 
 export interface Carga {
   id: number;
+  tipo: 'nomina' | 'libro';   // v9: incidencias de nómina o Excel importado como hoja
   archivo: string;
+  tamano?: number | null;
+  user_id?: number;
+  libro?: { id: number; nombre: string; eliminado: boolean } | null;
+  fecha_iso?: string;
+  eliminada?: string | null;
   usuario?: string;
   estatus: 'CON_ERRORES' | 'LISTA' | 'APLICADA' | 'FALLIDA' | 'DESCARTADA';
   modo: 'REEMPLAZAR' | 'MANTENER' | null;
@@ -125,13 +133,19 @@ export interface Carga {
   filas_total: number;
   num_errores: number;
   num_advertencias: number;
-  resumen: Record<string, number> | null;
+  resumen: (Record<string, number> & { avisos?: string[] }) | null;
   subida: string;
   aplicada: string | null;
   mensajes?: MensajeCarga[];
   desconocidas?: ColumnaDesconocida[];
   requiere_confirmacion?: boolean;
   grupos?: GrupoMensaje[];   // v7: mensajes agrupados en lenguaje de RH
+}
+
+/** v9: filtros del historial de importaciones (Informes). */
+export interface FiltrosHistorial {
+  q?: string; tipo?: 'nomina' | 'libro' | ''; estatus?: string; desde?: string; hasta?: string;
+  orden?: 'reciente' | 'antiguo' | 'nombre' | 'tamano'; papelera?: boolean; page?: number;
 }
 
 /** v7: mensajes iguales juntos ("3 fechas no válidas: D8, D14, D20") con su solución. */
@@ -181,4 +195,42 @@ export interface Estadisticas {
   serie: PuntoSerie[];
   top_faltas: { numero_empleado: string; nombre: string; faltas: number; quincenas: number }[];
   por_puesto: { puesto: string; empleados: number }[];
+}
+
+/** v8: una hoja de cálculo tal como la manda el servidor. */
+export interface HojaDatos {
+  hoja: { id: number; libro_id: number | null; nombre: string; version: number; autor: string | null; editado_por: string | null; actualizada: string | null };
+  columnas: { id: number; ancho: number }[];
+  filas: { id: number; alto: number }[];
+  estilos: Record<string, import('./features/hojas/motor/tipos').Estilo>;
+  celdas: import('./features/hojas/motor/tipos').Celda[];
+  combinadas: Combinada[];   // v9
+  imagenes: ImagenHoja[];    // v9
+}
+
+/** v9: rango combinado por ids (esquina superior izquierda f,c → inferior derecha f2,c2). */
+export interface Combinada { id: number; f: number; c: number; f2: number; c2: number }
+/** v9: imagen anclada a una celda; se descarga con la sesión (no es un enlace público). */
+export interface ImagenHoja { id: number; f: number; c: number; x: number; y: number; w: number; h: number; nombre: string | null; url: string }
+
+/** v9: libro = trabajo personal con una o más pestañas. */
+export interface LibroResumen {
+  id: number; nombre: string; origen: 'blanco' | 'plantilla' | 'importado' | 'personal'; es_personal: boolean;
+  hojas: number; user_id: number; autor: string | null; actualizado: string | null; actualizado_iso: string | null;
+}
+export interface LibroDetalle {
+  libro: { id: number; nombre: string; origen: LibroResumen['origen']; es_personal: boolean; user_id: number; autor: string | null; actualizado: string | null };
+  hojas: { id: number; nombre: string; orden: number }[];
+  nueva?: number;
+  importacion?: { carga_id: number; avisos: string[]; estadisticas: Record<string, number> };
+}
+
+export interface HojaPlantillaResumen { id: number; clave: string; nombre: string; descripcion: string | null; sistema: boolean; columnas: number; filas: number | null }
+
+/** Respuesta de guardar un lote de celdas. */
+export interface HojaGuardado {
+  version: number;
+  celdas: import('./features/hojas/motor/tipos').Celda[];
+  conflictos: import('./features/hojas/motor/tipos').Celda[];
+  estilos: Record<string, import('./features/hojas/motor/tipos').Estilo>;
 }

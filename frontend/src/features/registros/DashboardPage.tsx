@@ -5,6 +5,8 @@ import { mensajeDeError } from '../../api/http';
 import { useAuth } from '../../auth/AuthContext';
 import { Aviso } from '../../components/Aviso';
 import { useEsMovil } from '../../hooks/useMediaQuery';
+import { Menu, type OpcionMenu } from '../../components/Menu';
+import { ImportarExcelModal } from '../hojas/ImportarExcelModal';
 import { CargaWizard } from '../cargas/CargaWizard';
 import { EditarRegistroModal } from './EditarRegistroModal';
 import { FiltrosPanel } from './FiltrosPanel';
@@ -19,8 +21,12 @@ import { claveCatalogo } from '../../utils/columnas';
 import { TarjetasRegistros } from './TarjetasRegistros';
 import type { Columna, Fila, Filtros } from '../../types';
 
-/** Contenedor: maneja estado y datos; delega la presentación a componentes pequeños. */
-export function DashboardPage() {
+/**
+ * Contenedor: maneja estado y datos; delega la presentación a componentes pequeños.
+ * v9: acciones agrupadas (Importar ▾, Exportar ▾, Imprimir, ⋯) y filtros con buscador y etiquetas.
+ * `incrustado`: dentro de la pestaña "Incidencias" de Inicio (título más chico).
+ */
+export function DashboardPage({ incrustado = false }: { incrustado?: boolean }) {
   const { puede } = useAuth();
   const esMovil = useEsMovil();
   const qc = useQueryClient();
@@ -28,6 +34,7 @@ export function DashboardPage() {
   const [verId, setVerId] = useState<number | null>(null);
   const [editar, setEditar] = useState<Fila | null>(null);
   const [wizard, setWizard] = useState(false);
+  const [importarHoja, setImportarHoja] = useState(false);
   const [nuevo, setNuevo] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
   const [panelColumnas, setPanelColumnas] = useState(false);
@@ -95,37 +102,46 @@ export function DashboardPage() {
   const periodo = data?.periodo;
   const puedeEditar = puede('registros.editar');
 
+  const opcionesImportar: OpcionMenu[] = [
+    ...(puede('cargas.subir') ? [{ texto: 'Incidencias de nómina', detalle: 'El Excel quincenal de RH (se valida y se agrega a la quincena)', icono: '📋', onClick: () => setWizard(true) }] : []),
+    ...(puede('hojas.crear') ? [{ texto: 'Excel como hoja', detalle: 'Cualquier archivo: se abre en Mis hojas tal como está', icono: '▦', onClick: () => setImportarHoja(true) }] : []),
+  ];
+  const opcionesExportar: OpcionMenu[] = [
+    { texto: 'Excel (.xlsx)', detalle: 'Con el encabezado y formato de RH', icono: '⊞', onClick: () => exportar.mutate('EXCEL'), deshabilitada: exportar.isPending },
+    { texto: 'PDF', detalle: 'Horizontal, listo para firmar', icono: '🗎', onClick: () => exportar.mutate('PDF'), deshabilitada: exportar.isPending },
+  ];
+  const opcionesMas: OpcionMenu[] = [
+    ...(puede('registros.crear') ? [{ texto: 'Agregar empleado', icono: '+', onClick: () => setNuevo(true) }] : []),
+    ...(puedeColumnas ? [{ texto: 'Columnas del reporte', detalle: 'Agregar, mover u ocultar', icono: '☰', onClick: () => setPanelColumnas(true) }] : []),
+  ];
+
   return (
     <section>
       <div className="encabezado-pagina">
-        <div>
-          <h1>Listado de personal</h1>
-          <p className="tenue">{periodo ? `Quincena: ${periodo.etiqueta}` : 'Aún no hay cargas'}{data ? ` · ${data.meta.total} empleados` : ''}</p>
+        <div className="titulo-con-selector">
+          {incrustado ? <h2>Incidencias de nómina</h2> : <h1>Listado de personal</h1>}
+          <p className="tenue">
+            {periodos.length > 1 ? (
+              <select className="selector-quincena" aria-label="Quincena" value={filtros.periodo_id ?? ''}
+                onChange={(e) => setFiltros({ ...filtros, periodo_id: e.target.value ? Number(e.target.value) : undefined, page: 1 })}>
+                <option value="">Quincena más reciente{periodo && !filtros.periodo_id ? ` (${periodo.etiqueta})` : ''}</option>
+                {periodos.map((p) => <option key={p.id} value={p.id}>{p.etiqueta}</option>)}
+              </select>
+            ) : periodo ? `Quincena: ${periodo.etiqueta}` : 'Aún no hay cargas'}
+            {data ? ` · ${data.meta.total} empleados` : ''}
+          </p>
         </div>
-        <div className="acciones-pagina">
-          {periodos.length > 1 && (
-            <select aria-label="Quincena" value={filtros.periodo_id ?? ''} onChange={(e) => setFiltros({ ...filtros, periodo_id: e.target.value ? Number(e.target.value) : undefined, page: 1 })}>
-              <option value="">Quincena más reciente</option>
-              {periodos.map((p) => <option key={p.id} value={p.id}>{p.etiqueta}</option>)}
-            </select>
-          )}
-          {puede('registros.crear') && <button className="btn btn-sec" onClick={() => setNuevo(true)}>+ Empleado</button>}
-          {puedeColumnas && <button className="btn btn-sec" onClick={() => setPanelColumnas(true)} title="Agregar, mover u ocultar columnas">Columnas</button>}
-          {puede('cargas.subir') && <button className="btn" onClick={() => setWizard(true)}>Cargar Excel</button>}
-          {periodo && <button className="btn btn-sec" onClick={imprimir} title="Imprime toda la tabla (todas las páginas) con el encabezado de RH">Imprimir</button>}
-          {puede('exportar') && periodo && <>
-            <button className="btn btn-sec" disabled={exportar.isPending} onClick={() => exportar.mutate('EXCEL')}>Excel</button>
-            <button className="btn btn-sec" disabled={exportar.isPending} onClick={() => exportar.mutate('PDF')}>PDF</button>
-          </>}
+        <div className="barra-acciones" role="toolbar" aria-label="Acciones del listado">
+          {opcionesMas.length > 0 && <Menu etiqueta="⋯" titulo="Más acciones" clase="btn btn-sec btn-cuadrado" opciones={opcionesMas} />}
+          {periodo && <button className="btn btn-sec btn-cuadrado" onClick={imprimir} title="Imprimir toda la tabla con el encabezado de RH" aria-label="Imprimir">🖨</button>}
+          {puede('exportar') && periodo && <Menu etiqueta={exportar.isPending ? 'Exportando…' : 'Exportar'} opciones={opcionesExportar} />}
+          {opcionesImportar.length > 0 && <Menu etiqueta="⇪ Importar" clase="btn" opciones={opcionesImportar} />}
         </div>
       </div>
 
       {aviso && <Aviso tipo={aviso.tipo}>{aviso.texto} <button className="btn-link" onClick={() => setAviso(null)}>Cerrar</button></Aviso>}
 
-      <details className="panel-filtros" open={!esMovil}>
-        <summary>Filtros</summary>
-        <FiltrosPanel valor={filtros} onCambiar={setFiltros} />
-      </details>
+      <FiltrosPanel valor={filtros} onCambiar={setFiltros} />
 
       <div className="leyenda">
         <span className="faltas faltas-una">▲ 1</span> 1 falta
@@ -163,6 +179,7 @@ export function DashboardPage() {
         <ColumnasPanel />
       </Modal>
       <CargaWizard abierto={wizard} onCerrar={() => setWizard(false)} onListo={(texto) => setAviso({ tipo: 'exito', texto })} />
+      <ImportarExcelModal abierto={importarHoja} onCerrar={() => setImportarHoja(false)} />
       <NuevoEmpleadoModal abierto={nuevo} periodoId={periodo?.id} onCerrar={() => setNuevo(false)} />
     </section>
   );

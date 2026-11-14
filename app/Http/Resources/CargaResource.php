@@ -14,7 +14,13 @@ class CargaResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'tipo' => $this->tipo ?? 'nomina',                     // v9: nomina | libro
             'archivo' => $this->nombre_original,
+            'tamano' => $this->tamano,
+            'user_id' => $this->user_id,
+            'libro' => $this->whenLoaded('libro', fn () => $this->libro ? ['id' => $this->libro->id, 'nombre' => $this->libro->nombre, 'eliminado' => $this->libro->trashed()] : null),
+            'fecha_iso' => $this->created_at->toIso8601String(),
+            'eliminada' => $this->deleted_at?->format('d/m/Y H:i'),
             'usuario' => $this->whenLoaded('usuario', fn () => $this->usuario->name),
             'estatus' => $this->estatus->value,
             'modo' => $this->modo?->value,

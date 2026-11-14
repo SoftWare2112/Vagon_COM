@@ -4,13 +4,16 @@ import { useAuth } from '../auth/AuthContext';
 import { useOnline } from '../hooks/useOnline';
 import type { Permiso } from '../types';
 
-const MENU: { a: string; texto: string; icono: string; permiso: Permiso }[] = [
-  { a: '/', texto: 'Dashboard', icono: '▦', permiso: 'registros.ver' },
-  { a: '/graficas', texto: 'Gráficas', icono: '📊', permiso: 'registros.ver' },
-  { a: '/informes', texto: 'Informes', icono: '🗎', permiso: 'exportar' },
-  { a: '/usuarios', texto: 'Usuarios', icono: '👥', permiso: 'usuarios.gestionar' },
-  { a: '/historico', texto: 'Histórico', icono: '🕘', permiso: 'historico.ver' },
-  { a: '/ajustes', texto: 'Ajustes', icono: '⚙', permiso: 'ajustes.gestionar' },
+// v9: cada opción se ve si el usuario tiene AL MENOS uno de sus permisos
+const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] = [
+  { a: '/', texto: 'Inicio', icono: '⌂', permisos: ['registros.ver', 'hojas.ver'] },
+  { a: '/incidencias', texto: 'Incidencias', icono: '📋', permisos: ['registros.ver'] },
+  { a: '/hojas', texto: 'Mis hojas', icono: '▦', permisos: ['hojas.ver'] },
+  { a: '/graficas', texto: 'Gráficas', icono: '📊', permisos: ['registros.ver'] },
+  { a: '/informes', texto: 'Informes', icono: '🗎', permisos: ['cargas.ver', 'hojas.crear', 'exportar'] },
+  { a: '/usuarios', texto: 'Usuarios', icono: '👥', permisos: ['usuarios.gestionar'] },
+  { a: '/historico', texto: 'Histórico', icono: '🕘', permisos: ['historico.ver'] },
+  { a: '/ajustes', texto: 'Ajustes', icono: '⚙', permisos: ['ajustes.gestionar'] },
 ];
 
 const NOMBRE_ROL = { admin_rh: 'Administrador (RH)', supervisor: 'Supervisor', lector: 'Lector' } as const;
@@ -32,7 +35,7 @@ export function AppLayout() {
       <aside className="sidebar" aria-label="Menú principal">
         <div className="marca">Reportes<span>Personal</span></div>
         <nav>
-          {MENU.filter((m) => puede(m.permiso)).map((m) => (
+          {MENU.filter((m) => m.permisos.some(puede)).map((m) => (
             <NavLink key={m.a} to={m.a} end={m.a === '/'} onClick={() => setAbierto(false)}>
               <span className="icono" aria-hidden>{m.icono}</span>{m.texto}
             </NavLink>

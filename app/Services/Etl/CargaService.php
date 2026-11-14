@@ -78,8 +78,10 @@ class CargaService
 
         $carga = DB::transaction(function () use ($archivo, $usuario, $sha, $contenidoHash, $res, $ruta, $hojaExtraida, $hojas, $huella) {
             $carga = Carga::create([
+                'tipo' => Carga::NOMINA,
                 'user_id' => $usuario->id,
                 'nombre_original' => mb_substr($archivo->getClientOriginalName(), 0, 255),
+                'tamano' => $archivo->getSize() ?: null,
                 'ruta_archivo' => $ruta,
                 'sha256' => $sha,
                 'contenido_hash' => $contenidoHash,
@@ -240,7 +242,7 @@ class CargaService
         // v6: la quincena ya tiene datos -> RH confirma que quiere actualizarla
         // (evita que una quincena nueva con el encabezado sin cambiar pise la anterior)
         if ($mismasFechas && ($n = $mismasFechas->registros()->count()) > 0) {
-            $ultima = Carga::with('usuario')->where('periodo_id', $mismasFechas->id)->where('estatus', EstatusCarga::Aplicada)->latest('aplicada_at')->first();
+            $ultima = Carga::withTrashed()->with('usuario')->where('periodo_id', $mismasFechas->id)->where('estatus', EstatusCarga::Aplicada)->latest('aplicada_at')->first();
             $cuando = $ultima ? " (última carga el {$ultima->aplicada_at->format('d/m/Y H:i')} por {$ultima->usuario?->name})" : '';
             $mensajes[] = Mensaje::advertencia('PERIODO_YA_CARGADO', "La quincena {$mismasFechas->nombre()} ya tiene {$n} registro(s){$cuando}. Al aplicar se actualizarán. Si es una quincena nueva, revisa el Periodo y las fechas del encabezado.");
         }
@@ -332,7 +334,8 @@ class CargaService
             return;
         }
 
-        $previa = Carga::with('usuario')
+        // v9: también cuenta lo que se quitó del historial (papelera): los datos de nómina siguen ahí
+        $previa = Carga::withTrashed()->with('usuario')
             ->where('estatus', EstatusCarga::Aplicada)
             ->where(fn ($q) => $q
                 ->when($huella, fn ($q) => $q->orWhere('sha256_aplicado', $huella))

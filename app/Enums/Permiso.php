@@ -21,6 +21,14 @@ enum Permiso: string
     case ColumnasGestionar = 'columnas.gestionar';
     case UsuariosGestionar = 'usuarios.gestionar';
     case AjustesGestionar = 'ajustes.gestionar';
+    // v8: módulo Hojas
+    case HojasVer = 'hojas.ver';
+    case HojasCrear = 'hojas.crear';
+    case HojasEditar = 'hojas.editar';
+    case PlantillasGestionar = 'plantillas.gestionar';
+    // v9: espacio personal e historial de importaciones
+    case HojasVerTodas = 'hojas.ver_todas';
+    case InformesLimpiar = 'informes.limpiar';
 
     public function descripcion(): string
     {
@@ -37,6 +45,12 @@ enum Permiso: string
             self::ColumnasGestionar => 'Agregar, mover y ocultar columnas',
             self::UsuariosGestionar => 'Gestionar usuarios, roles y permisos',
             self::AjustesGestionar => 'Cambiar ajustes del sistema',
+            self::HojasVer => 'Ver las hojas de cálculo',
+            self::HojasCrear => 'Crear e importar sus propios libros (en blanco, desde plantilla o desde un Excel)',
+            self::HojasEditar => 'Escribir, dar formato y cambiar filas o columnas de las hojas',
+            self::PlantillasGestionar => 'Guardar y borrar plantillas de hojas',
+            self::HojasVerTodas => 'Ver y controlar los trabajos (libros) de todos los usuarios',
+            self::InformesLimpiar => 'Quitar importaciones de otros usuarios y limpiar todo el historial',
         };
     }
 
@@ -52,10 +66,14 @@ enum Permiso: string
                 self::CargasVer->value,
                 self::Exportar->value,
                 self::HistoricoVer->value,        // consulta; restaurar se puede habilitar desde la web
+                self::HojasVer->value,
+                self::HojasCrear->value,
+                self::HojasEditar->value,
             ],
             'lector' => [
                 self::RegistrosVer->value,
                 self::Exportar->value,
+                self::HojasVer->value,
             ],
         ];
     }

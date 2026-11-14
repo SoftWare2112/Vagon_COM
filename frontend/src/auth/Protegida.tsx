@@ -2,8 +2,8 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import type { Permiso } from '../types';
 
-/** Exige sesión (y opcionalmente un permiso) para entrar a la ruta. */
-export function Protegida({ permiso }: { permiso?: Permiso }) {
+/** Exige sesión (y opcionalmente un permiso, o al menos uno de varios) para entrar a la ruta. */
+export function Protegida({ permiso, alguno }: { permiso?: Permiso; alguno?: Permiso[] }) {
   const { usuario, cargando, puede } = useAuth();
   const loc = useLocation();
 
@@ -11,5 +11,6 @@ export function Protegida({ permiso }: { permiso?: Permiso }) {
   if (!usuario) return <Navigate to="/login" replace state={{ desde: loc.pathname }} />;
   if (usuario.must_change_password && loc.pathname !== '/cambiar-password') return <Navigate to="/cambiar-password" replace />;
   if (permiso && !puede(permiso)) return <Navigate to="/" replace />;
+  if (alguno && !alguno.some(puede)) return <Navigate to="/" replace />;
   return <Outlet />;
 }

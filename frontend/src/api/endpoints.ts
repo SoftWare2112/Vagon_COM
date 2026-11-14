@@ -1,6 +1,6 @@
 import { http, csrf } from './http';
 import type {
-  Carga, Columna, ColumnaCatalogo, Estadisticas, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
+  Carga, Columna, ColumnaCatalogo, Estadisticas, FiltrosHistorial, HojaDatos, HojaGuardado, HojaPlantillaResumen, LibroDetalle, LibroResumen, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
   RolesRespuesta, TablaRespuesta, TipoColumna, Usuario,
 } from '../types';
 
@@ -39,6 +39,53 @@ export const registrosApi = {
     http.post('/api/empleados', p),
 };
 
+/** v8: hojas de cálculo. */
+/** v9: libros personales (cada usuario ve los suyos; hojas.ver_todas ve los de todos). */
+export const librosApi = {
+  listar: async (p: { q?: string; todos?: boolean } = {}) =>
+    (await http.get<LibroResumen[]>('/api/libros', { params: limpiar({ q: p.q, todos: p.todos ? 1 : undefined }) })).data,
+  personal: async () => (await http.get<LibroDetalle>('/api/libros/personal')).data,
+  crear: async (nombre: string, plantillaId?: number) => (await http.post<LibroDetalle>('/api/libros', { nombre, plantilla_id: plantillaId })).data,
+  importar: async (archivo: File, nombre?: string, onProgreso?: (pct: number) => void) => {
+    const fd = new FormData();
+    fd.append('archivo', archivo);
+    if (nombre) fd.append('nombre', nombre);
+    return (await http.post<LibroDetalle>('/api/libros/importar', fd, {
+      timeout: 180_000,
+      onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
+    })).data;
+  },
+  obtener: async (id: number) => (await http.get<LibroDetalle>(`/api/libros/${id}`)).data,
+  renombrar: (id: number, nombre: string) => http.patch(`/api/libros/${id}`, { nombre }),
+  eliminar: (id: number) => http.delete(`/api/libros/${id}`),
+  agregarHoja: async (id: number) => (await http.post<LibroDetalle>(`/api/libros/${id}/hojas`, {})).data,
+};
+
+export const hojasApi = {
+  plantillas: async () => (await http.get<HojaPlantillaResumen[]>('/api/hoja-plantillas')).data,
+  obtener: async (id: number) => (await http.get<HojaDatos>(`/api/hojas/${id}`)).data,
+  /** Renombra la pestaña. */
+  renombrar: (id: number, nombre: string) => http.patch(`/api/hojas/${id}`, { nombre }),
+  /** Borra la pestaña y devuelve el libro actualizado. */
+  eliminar: async (id: number) => (await http.delete<LibroDetalle>(`/api/hojas/${id}`)).data,
+  guardar: async (id: number, cambios: unknown[], formatos: unknown[]) =>
+    (await http.patch<HojaGuardado>(`/api/hojas/${id}/celdas`, { cambios, formatos })).data,
+  /** despuesDe: id de fila; 0 = al inicio; null = al final. */
+  insertarFilas: async (id: number, despuesDe: number | null, cantidad = 1) =>
+    (await http.post<HojaDatos>(`/api/hojas/${id}/filas`, despuesDe === 0 ? { al_inicio: true, cantidad } : { despues_de: despuesDe, cantidad })).data,
+  eliminarFila: async (id: number, fila: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/filas/${fila}`)).data,
+  insertarColumnas: async (id: number, despuesDe: number | null, cantidad = 1) =>
+    (await http.post<HojaDatos>(`/api/hojas/${id}/columnas`, despuesDe === 0 ? { al_inicio: true, cantidad } : { despues_de: despuesDe, cantidad })).data,
+  eliminarColumna: async (id: number, columna: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/columnas/${columna}`)).data,
+  ancho: (id: number, columna: number, ancho: number) => http.patch(`/api/hojas/${id}/columnas/${columna}`, { ancho }),
+  // v9: combinar celdas e imágenes
+  combinar: async (id: number, r: { f: number; c: number; f2: number; c2: number }) => (await http.post<HojaDatos>(`/api/hojas/${id}/combinar`, r)).data,
+  separar: async (id: number, combinada: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/combinadas/${combinada}`)).data,
+  eliminarImagen: (id: number, imagen: number) => http.delete(`/api/hojas/${id}/imagenes/${imagen}`),
+  /** La imagen se pide con la sesión y se muestra como blob (no hay enlaces públicos). */
+  imagen: async (url: string) => (await http.get<Blob>(url, { responseType: 'blob' })).data,
+};
+
 /** v6: datos de la pantalla Gráficas. */
 export const estadisticasApi = {
   obtener: async (periodoId?: number) => (await http.get<Estadisticas>('/api/estadisticas', { params: limpiar({ periodo_id: periodoId }) })).data,
@@ -50,7 +97,14 @@ export const catalogosApi = {
 };
 
 export const cargasApi = {
-  historial: async () => (await http.get<Paginado<Carga>>('/api/cargas')).data,
+  /** v9: historial de importaciones (nómina y libros) con búsqueda, filtros, orden y papelera. */
+  historial: async (f: FiltrosHistorial = {}) =>
+    (await http.get<Paginado<Carga>>('/api/cargas', { params: limpiar({ ...f, papelera: f.papelera ? 1 : undefined }) })).data,
+  quitar: async (id: number, conLibro = false) =>
+    (await http.delete<{ message: string }>(`/api/cargas/${id}`, { params: conLibro ? { con_libro: 1 } : {} })).data,
+  restaurar: async (id: number) => (await http.post<{ message: string }>(`/api/cargas/${id}/restaurar`)).data,
+  limpiar: async (alcance: 'mias' | 'todas', tipo?: 'nomina' | 'libro') =>
+    (await http.post<{ message: string; cantidad: number }>('/api/cargas/limpiar', { alcance, tipo })).data,
   /** periodo: fechas dd/mm/aaaa que RH escribe cuando el encabezado del periodo está mal o no viene. */
   subir: async (archivo: File, anio: number, onProgreso?: (pct: number) => void, hoja?: string, periodo?: { inicio: string; fin: string }) => {
     const fd = new FormData();

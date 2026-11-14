@@ -7,11 +7,19 @@ use App\Enums\ModoSincronizacion;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
+/** Historial de importaciones. v9: tipo nomina (incidencias) o libro (cualquier Excel como hoja). */
 class Carga extends Model
 {
+    use SoftDeletes;
+
+    public const NOMINA = 'nomina';
+
+    public const LIBRO = 'libro';
+
     protected $fillable = [
-        'user_id', 'periodo_id', 'nombre_original', 'ruta_archivo', 'sha256', 'contenido_hash',
+        'tipo', 'user_id', 'periodo_id', 'libro_id', 'nombre_original', 'tamano', 'eliminado_por', 'ruta_archivo', 'sha256', 'contenido_hash',
         'sha256_aplicado', 'contenido_hash_aplicado', 'modo', 'estatus', 'encabezados',
         'filas_total', 'num_errores', 'num_advertencias', 'resumen', 'aplicada_at',
     ];
@@ -37,6 +45,11 @@ class Carga extends Model
     public function periodo(): BelongsTo
     {
         return $this->belongsTo(Periodo::class);
+    }
+
+    public function libro(): BelongsTo
+    {
+        return $this->belongsTo(Libro::class)->withTrashed();
     }
 
     public function filas(): HasMany

@@ -33,6 +33,12 @@ return [
         'max_faltas' => 31,
     ],
 
+    // v9: libros (hojas de cálculo) e historial de importaciones
+    'libros' => [
+        'carpeta_imagenes' => 'hojas',     // storage/app/private/hojas/{hoja}/...
+        'dias_papelera' => 30,             // lo quitado del historial se borra definitivamente después de N días
+    ],
+
     // Puestos sugeridos para el catálogo (el Excel trae "Puesto" en la 3a columna; el catálogo crece solo)
     'puestos_base' => ['Asesor', 'Supervisor', 'MSI'],
 ];

@@ -12,6 +12,9 @@ import { RestablecerPage } from './features/auth/RestablecerPage';
 import { CambiarPasswordPage } from './features/auth/CambiarPasswordPage';
 import { ImprimirPage } from './features/impresion/ImprimirPage';
 import { EstadisticasPage } from './features/estadisticas/EstadisticasPage';
+import { HojasPage } from './features/hojas/HojasPage';
+import { LibroPage } from './features/hojas/EditorLibro';
+import { InicioPage } from './features/inicio/InicioPage';
 
 export default function App() {
   return (
@@ -26,9 +29,15 @@ export default function App() {
           {/* v6: impresión sin menú lateral (solo la tabla y su encabezado) */}
           <Route element={<Protegida permiso="registros.ver" />}><Route path="/imprimir" element={<ImprimirPage />} /></Route>
           <Route element={<AppLayout />}>
-            <Route element={<Protegida permiso="registros.ver" />}><Route index element={<DashboardPage />} /></Route>
+            {/* v9: Inicio = Mi hoja + Incidencias + Recientes (cada pestaña según permisos) */}
+            <Route index element={<InicioPage />} />
+            <Route element={<Protegida permiso="registros.ver" />}><Route path="incidencias" element={<DashboardPage />} /></Route>
             <Route element={<Protegida permiso="registros.ver" />}><Route path="graficas" element={<EstadisticasPage />} /></Route>
-            <Route element={<Protegida permiso="exportar" />}><Route path="informes" element={<InformesPage />} /></Route>
+            <Route element={<Protegida permiso="hojas.ver" />}>
+              <Route path="hojas" element={<HojasPage />} />
+              <Route path="hojas/:id" element={<LibroPage />} />
+            </Route>
+            <Route element={<Protegida alguno={['cargas.ver', 'hojas.crear', 'exportar']} />}><Route path="informes" element={<InformesPage />} /></Route>
             <Route element={<Protegida permiso="usuarios.gestionar" />}><Route path="usuarios" element={<UsuariosPage />} /></Route>
             <Route element={<Protegida permiso="historico.ver" />}><Route path="historico" element={<HistoricoPage />} /></Route>
             <Route element={<Protegida permiso="ajustes.gestionar" />}><Route path="ajustes" element={<AjustesPage />} /></Route>
