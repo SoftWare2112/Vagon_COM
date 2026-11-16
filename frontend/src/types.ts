@@ -1,11 +1,8 @@
 export type Permiso =
-  | 'registros.ver' | 'registros.crear' | 'registros.editar' | 'registros.eliminar'
-  | 'cargas.subir' | 'cargas.ver' | 'exportar'
-  | 'historico.ver' | 'historico.restaurar' | 'columnas.gestionar'
-  | 'usuarios.gestionar' | 'ajustes.gestionar'
-  | 'hojas.ver' | 'hojas.crear' | 'hojas.editar' | 'plantillas.gestionar'
-  | 'hojas.ver_todas' | 'informes.limpiar'
-  | 'publicaciones.ver' | 'publicaciones.crear' | 'publicaciones.moderar';
+  | 'usuarios.gestionar'
+  | 'publicaciones.ver' | 'publicaciones.crear' | 'publicaciones.moderar'
+  | 'empleados.ver' | 'empleados.gestionar' | 'nomina.configurar'
+  | 'nomina.ver' | 'nomina.calcular' | 'nomina.autorizar' | 'indicadores.ver';   // v12
 
 export interface Usuario {
   id: number;
@@ -21,58 +18,9 @@ export interface Usuario {
   last_login_at: string | null;
 }
 
-export type TipoColumna = 'texto' | 'texto_largo' | 'entero' | 'decimal' | 'dinero' | 'fecha' | 'booleano';
-
-/** Columna tal como la manda el servidor (ya expandida para la quincena y en orden). */
-export interface Columna {
-  clave: string;          // 'nombre_completo', 'domingo:2026-08-16', 'valor_periodo', 'extra:bono_transporte'
-  etiqueta: string;
-  tipo: TipoColumna;
-  editable: boolean;
-  origen: 'sistema' | 'personalizada' | 'domingos' | 'periodo';
-}
-
-/** Una fila: un empleado en una quincena. Los valores van por clave de columna. */
-export interface Fila {
-  id: number;
-  empleado_id: number;
-  numero_empleado: string;
-  version: number;
-  origen: 'excel' | 'manual';
-  campos_editados: string[];
-  valores: Record<string, string | number | boolean | null>;
-}
-
-export interface PeriodoInfo { id: number; etiqueta: string; inicio: string; fin: string }
-
 export interface Paginado<T> {
   data: T[];
   meta: { current_page: number; last_page: number; total: number; per_page: number };
-}
-
-export interface TablaRespuesta extends Paginado<Fila> {
-  periodo: PeriodoInfo | null;
-  columnas: Columna[];
-}
-
-export interface Resumen extends Fila { columnas: Columna[]; periodo: string; faltas_mes: number }
-
-/** Registro del catálogo (Ajustes > Columnas). */
-export interface ColumnaCatalogo {
-  id: number; clave: string; etiqueta: string; tipo: TipoColumna;
-  origen: Columna['origen']; orden: number; alias: string[] | null;
-  obligatoria: boolean; editable: boolean; visible: boolean; activa: boolean;
-}
-
-export interface ReporteCambioTipo {
-  columna: string;
-  tipo_actual: TipoColumna;
-  tipo_nuevo: TipoColumna;
-  con_valor: number;
-  convertibles: number;
-  no_convertibles: number;
-  ejemplos: { numero_empleado: string; nombre: string; periodo: string; valor: string; esperado: string }[];
-  aplicado: boolean;
 }
 
 export interface RolesRespuesta {
@@ -80,180 +28,126 @@ export interface RolesRespuesta {
   roles: { id: number; nombre: string; descripcion: string; permisos: Permiso[] }[];
 }
 
-export interface Filtros {
-  periodo_id?: number;
-  nombre?: string;
-  puesto?: string;
-  ingreso_desde?: string; // dd/mm/aaaa
-  ingreso_hasta?: string;
-  faltas?: string;
-  orden?: string;
-  direccion?: 'asc' | 'desc';
-  page?: number;
+// ───────────────────────── v11: Nómina ─────────────────────────
+export type Periodicidad = 'semanal' | 'quincenal' | 'mensual';
+export type TipoContrato = 'capacitacion' | 'prueba' | 'temporal' | 'indeterminado';
+
+export interface EmpleadoResumen {
+  id: number; numero_empleado: string; nombre: string; rfc: string | null; puesto: string | null; salario_mensual: number | null;
+  periodicidad: Periodicidad; tipo_contrato: TipoContrato; contrato_fin: string | null; fecha_ingreso: string;
+  estado: 'activo' | 'baja'; faltantes: string[];
 }
 
-export interface MensajeCarga {
-  nivel: 'ERROR' | 'ADVERTENCIA';
-  codigo: string;
-  mensaje: string;
-  fila: number | null;
-  columna: string | null;
-  celda: string | null;
-  valor_recibido: string | null;
-  confirmar?: boolean;      // advertencia que RH debe confirmar antes de aplicar (v5)
+export interface Empleado extends EmpleadoResumen {
+  nombres: string | null; apellido_paterno: string | null; apellido_materno: string | null; curp: string | null; nss: string | null;
+  codigo_postal: string | null; email: string | null; telefono: string | null; puesto_id: number | null; departamento: string | null;
+  jornada_horas: number | null; dias_descanso: number[] | null; banco: string | null; clabe: string | null;
+  fecha_baja: string | null; motivo_baja: string | null; notas: string | null;
+  calculos: { salario_diario: number | null; factor_integracion: number; sdi: number | null; antiguedad_anios: number; antiguedad_meses: number;
+    dias_vacaciones: number; vacaciones_desde: string; aguinaldo_dias: number };
+  contratos: { id: number; tipo: TipoContrato; inicio: string; fin: string | null; notas: string | null }[];
+  salarios: { id: number; salario_mensual: number; desde: string; motivo: string | null }[];
+  // v12
+  movimientos: { id: number; tipo: TipoMovimiento; fecha: string; descripcion: string; por: string | null }[];
+  validaciones_omitidas: Partial<Record<CampoFiscal, { motivo: string; por_nombre: string | null; fecha: string }>>;
+  recibos: ReciboLista[];
 }
 
-/** Encabezado del Excel que la plataforma no reconoció, con las columnas que más se le parecen. */
-export interface ColumnaDesconocida {
-  columna: string;          // letra en el Excel ("K")
-  encabezado: string;       // "# Faltas Q"
-  sugerencias: { clave: string; etiqueta: string }[];
+export type CampoFiscal = 'rfc' | 'curp' | 'nss' | 'clabe';
+export type TipoMovimiento = 'alta' | 'baja' | 'reingreso' | 'salario' | 'contrato' | 'puesto';
+
+export interface DatosEmpleado {
+  numero_empleado?: string; nombres?: string; apellido_paterno?: string; apellido_materno?: string; rfc?: string; curp?: string; nss?: string;
+  codigo_postal?: string; email?: string; telefono?: string; fecha_ingreso?: string; puesto_id?: number | null; departamento?: string;
+  salario_mensual?: number | null; periodicidad?: Periodicidad; tipo_contrato?: TipoContrato; contrato_fin?: string | null;
+  jornada_horas?: number | null; dias_descanso?: number[]; banco?: string; clabe?: string; notas?: string;
+  omitir_validacion?: CampoFiscal[]; motivo_omision?: string;   // v12
 }
 
-/** Quincena: fechas + (si el Excel trae el bloque de arriba) Ejercicio y número de periodo. */
-export interface PeriodoCarga {
-  inicio: string; fin: string; etiqueta: string;
-  ejercicio?: number | null; numero?: number | null; tipo?: string | null;
+export interface Alerta { empleado_id: number | null; nombre: string; numero: string | null; tipo: 'contrato' | 'tres_meses' | 'aniversario' | 'incompleto' | 'tablas'; nivel: 'error' | 'advertencia' | 'info'; fecha: string | null; texto: string }
+
+export interface LineaNomina { clave: string; nombre: string; clave_sat: string | null; importe: number; gravado?: number; exento?: number; detalle?: string }
+
+/** Resultado del motor de cálculo (simulación de un periodo). */
+export interface CalculoNomina {
+  salario_diario: number; sdi: number; sbc: number; dias_pagados: number; dias_periodo: number; dias_fuera?: number;
+  antiguedad: { anios: number; meses: number };
+  percepciones: LineaNomina[]; deducciones: LineaNomina[];
+  isr: { base: number; limite_inferior: number; excedente: number; porcentaje: number; impuesto_marginal: number; cuota_fija: number;
+    isr_causado: number; subsidio_causado: number; subsidio_aplicado: number; isr_retenido: number };
+  imss: { clave: string; nombre: string; tasa: number; base_diaria: number; importe: number }[];
+  totales: { percepciones: number; gravado: number; exento: number; deducciones: number; neto: number };
+  avisos: string[];
+  periodo: { numero: number; inicio: string; fin: string; fecha_pago: string; dias: number; fin_de_mes: boolean; guardado: boolean; tipo: Periodicidad };
 }
 
-export interface Carga {
-  id: number;
-  tipo: 'nomina' | 'libro';   // v9: incidencias de nómina o Excel importado como hoja
-  archivo: string;
-  tamano?: number | null;
-  user_id?: number;
-  libro?: { id: number; nombre: string; eliminado: boolean } | null;
-  fecha_iso?: string;
-  eliminada?: string | null;
-  usuario?: string;
-  estatus: 'CON_ERRORES' | 'LISTA' | 'APLICADA' | 'FALLIDA' | 'DESCARTADA';
-  modo: 'REEMPLAZAR' | 'MANTENER' | null;
-  periodo: PeriodoCarga | null;
-  hoja?: string | null;     // hoja del libro que se leyó
-  hojas?: string[];         // hojas visibles del libro (para elegir otra)
-  filas_total: number;
-  num_errores: number;
-  num_advertencias: number;
-  resumen: (Record<string, number> & { avisos?: string[] }) | null;
-  subida: string;
-  aplicada: string | null;
-  mensajes?: MensajeCarga[];
-  desconocidas?: ColumnaDesconocida[];
-  requiere_confirmacion?: boolean;
-  grupos?: GrupoMensaje[];   // v7: mensajes agrupados en lenguaje de RH
+export interface Empresa {
+  id: number; nombre: string; razon_social: string | null; rfc: string | null; regimen_fiscal: string | null; registro_patronal: string | null;
+  codigo_postal: string | null; estado: string | null; periodicidad: Periodicidad; divisor_salario_diario: number; dias_aguinaldo: number;
+  prima_vacacional: number; zona_salario_minimo: 'general' | 'frontera_norte';
+  timbrado_activo: boolean;   // v12: el CFDI es opcional
 }
 
-/** v9: filtros del historial de importaciones (Informes). */
-export interface FiltrosHistorial {
-  q?: string; tipo?: 'nomina' | 'libro' | ''; estatus?: string; desde?: string; hasta?: string;
-  orden?: 'reciente' | 'antiguo' | 'nombre' | 'tamano'; papelera?: boolean; page?: number;
+export interface ReglaConcepto { solo_fin_de_mes?: boolean; sin_faltas?: boolean; sin_retardos?: boolean; antiguedad_meses_min?: number | null; frecuencia?: 'recurrente' | 'unico' }
+export interface ConceptoNomina {
+  id: number; clave: string; nombre: string; tipo: 'percepcion' | 'deduccion'; clave_sat: string | null;
+  metodo: 'sueldo' | 'fijo' | 'por_evento' | 'captura' | 'isr' | 'imss'; monto: number; porcentaje: number;
+  regla: ReglaConcepto | null; exencion: { tipo: 'ninguna' | 'total' | 'uma_por_evento' | 'uma_tope'; umas?: number } | null;
+  descripcion: string | null; sistema: boolean; activo: boolean; orden: number;
 }
 
-/** v7: mensajes iguales juntos ("3 fechas no válidas: D8, D14, D20") con su solución. */
-export interface GrupoMensaje {
-  codigo: string;
-  tipo: 'error' | 'confirmar' | 'info';
-  titulo: string;
-  solucion: string;
-  cantidad: number;
-  ubicaciones: string[];
-  detalle: string[];
+export interface TablaFiscal { id: number; tipo: string; nombre: string; vigente_desde: string; datos: Record<string, unknown>; fuente: string | null; vigente: boolean }
+
+export type EstadoPeriodo = 'abierto' | 'calculado' | 'autorizado';
+export interface PeriodoNomina { id: number; tipo: Periodicidad; ejercicio: number; numero: number; inicio: string; fin: string; fecha_pago: string; dias: number; fin_de_mes: boolean; estado: EstadoPeriodo; etiqueta: string;
+  calculado_at?: string | null; autorizado_at?: string | null; autorizado_por?: string | null }
+
+// ───────────────────────── v12: nómina del periodo ─────────────────────────
+export interface ReciboResumen { id: number; estado: 'borrador' | 'autorizado'; dias_pagados: number; percepciones: number; deducciones: number; isr: number; imss: number; neto: number; uuid: string | null; avisos: string[] }
+export interface FilaCaptura {
+  empleado_id: number; numero_empleado: string; nombre: string; puesto: string | null; dias_fuera: number;
+  faltas: number; retardos: number; domingos: number; capturados: Record<string, number>; notas: string | null; recibo: ReciboResumen | null;
 }
-
-export interface Impacto {
-  nuevos: number; actualizados: number; restaurados: number; eliminados: number; omitidos: number;
-  detalle: Record<string, string[]>;
+export interface Captura {
+  periodo: PeriodoNomina; timbrado_activo: boolean; columnas: { clave: string; nombre: string; tipo: 'percepcion' | 'deduccion' }[];
+  filas: FilaCaptura[]; pendiente_recalcular: boolean;
+  totales: { empleados: number; percepciones: number; deducciones: number; isr: number; imss: number; neto: number } | null;
 }
-
-export interface Previsualizacion {
-  periodo: PeriodoCarga;
-  requiere_confirmacion?: boolean;
-  quincena_nueva: boolean;
-  columnas_ausentes: string[];
-  modo_predeterminado: 'REEMPLAZAR' | 'MANTENER';
-  impacto: Record<'REEMPLAZAR' | 'MANTENER', Impacto>;
+export interface PeriodoHistorial extends PeriodoNomina { recibos: number; timbrados: number; neto: number; percepciones: number }
+export interface ReciboLista { id: number; ejercicio: number; numero: number; tipo: Periodicidad; etiqueta: string; fecha_pago: string; neto: number; uuid: string | null }
+export interface Recibo extends ReciboResumen {
+  empleado_id: number; numero_empleado: string; nombre: string; rfc: string | null; curp: string | null; nss: string | null; puesto: string | null;
+  salario_mensual: number; salario_diario: number; sdi: number; sbc: number; faltas: number; retardos: number; domingos: number;
+  periodo: PeriodoNomina; calculo: Omit<CalculoNomina, 'periodo'>;
+  cfdi: { activo: boolean; uuid: string | null; timbrado_at: string | null; estado: 'timbrado' | 'pendiente' | 'desactivado' | 'no_aplica' };
+  integridad: 'ok' | 'alterado' | null;
 }
-
-/** v6: reporte con la estructura del archivo de RH (impresión; el Excel/PDF usan la misma). */
-export interface ReporteRh {
-  encabezado: { tipo: string | null; ejercicio: number | null; numero: number | null; titulo: string; periodo: string };
-  columnas: { clave: string | null; etiqueta: string; tipo: TipoColumna }[];
-  filas: (string | number | null)[][];
-  col_faltas: number | null;
+export interface ListaDeRaya {
+  periodo: PeriodoNomina; columnas: { clave: string; nombre: string; tipo: 'percepcion' | 'deduccion' }[];
+  filas: { recibo_id: number; numero_empleado: string; nombre: string; rfc: string | null; puesto: string | null; dias: number; importes: Record<string, number>; percepciones: number; deducciones: number; neto: number; uuid: string | null }[];
+  totales: { importes: Record<string, number>; percepciones: number; deducciones: number; neto: number };
 }
-
-/** v6: una quincena en las gráficas. */
-export interface PuntoSerie {
-  periodo_id: number; corto: string; nombre: string;
-  empleados: number; faltas_total: number; con_faltas: number; pct_con_faltas: number; acreditan_bono: number;
-  prima_vacacional: number; bono_3_meses: number; bono_puntualidad: number; bono_asistencia: number;
-  domingos_programados: number; domingos_trabajados: number; nuevos: number;
+export interface Acumulados {
+  ejercicio: number; tipo: Periodicidad; periodos: { numero: number; inicio: string; fin: string }[];
+  filas: { clave: string; nombre: string; tipo: 'percepcion' | 'deduccion'; periodos: Record<string, number>; total: number }[];
 }
-
-export interface Estadisticas {
-  periodo: { id: number; nombre: string; ejercicio: number } | null;
-  kpis: { empleados: number; faltas_total: number; con_faltas: number; pct_con_faltas: number; monto_bonos: number; acreditan_bono: number; nuevos: number } | null;
-  serie: PuntoSerie[];
-  top_faltas: { numero_empleado: string; nombre: string; faltas: number; quincenas: number }[];
-  por_puesto: { puesto: string; empleados: number }[];
+export interface Respaldo { archivo: string; tamano: number; fecha: string }
+export interface PuntoIndicador {
+  clave: string; etiqueta: string; inicio: string; fin: string; recibos: number; faltas: number; retardos: number; domingos: number;
+  bonos: Record<string, number>; prima_dominical: number | null; neto: number | null; altas: number; bajas: number; plantilla: number; rotacion: number;
 }
-
-/** v8: una hoja de cálculo tal como la manda el servidor. */
-export interface HojaDatos {
-  hoja: { id: number; libro_id: number | null; nombre: string; version: number; autor: string | null; editado_por: string | null; actualizada: string | null };
-  columnas: { id: number; ancho: number }[];
-  filas: { id: number; alto: number }[];
-  estilos: Record<string, import('./features/hojas/motor/tipos').Estilo>;
-  celdas: import('./features/hojas/motor/tipos').Celda[];
-  combinadas: Combinada[];   // v9
-  imagenes: ImagenHoja[];    // v9
-}
-
-/** v9: rango combinado por ids (esquina superior izquierda f,c → inferior derecha f2,c2). */
-export interface Combinada { id: number; f: number; c: number; f2: number; c2: number }
-/** v9: imagen anclada a una celda; se descarga con la sesión (no es un enlace público). */
-export interface ImagenHoja { id: number; f: number; c: number; x: number; y: number; w: number; h: number; nombre: string | null; url: string }
-
-/** v9: libro = trabajo personal con una o más pestañas. */
-export interface LibroResumen {
-  id: number; nombre: string; origen: 'blanco' | 'plantilla' | 'importado' | 'personal' | 'copia'; es_personal: boolean;
-  hojas: number; user_id: number; autor: string | null; actualizado: string | null; actualizado_iso: string | null;
-}
-export interface LibroDetalle {
-  libro: { id: number; nombre: string; origen: LibroResumen['origen']; es_personal: boolean; user_id: number; autor: string | null; actualizado: string | null };
-  hojas: { id: number; nombre: string; orden: number }[];
-  nueva?: number;
-  importacion?: { carga_id: number; avisos: string[]; estadisticas: Record<string, number> };
-}
-
-export interface HojaPlantillaResumen { id: number; clave: string; nombre: string; descripcion: string | null; sistema: boolean; columnas: number; filas: number | null }
-
-/** Respuesta de guardar un lote de celdas. */
-export interface HojaGuardado {
-  version: number;
-  celdas: import('./features/hojas/motor/tipos').Celda[];
-  conflictos: import('./features/hojas/motor/tipos').Celda[];
-  estilos: Record<string, import('./features/hojas/motor/tipos').Estilo>;
+export interface IndicadoresRespuesta {
+  ejercicio: number; agrupar: 'quincena' | 'mes'; bonos: { clave: string; nombre: string }[]; serie: PuntoIndicador[]; con_nomina: boolean;
+  totales: { faltas: number; retardos: number; domingos: number; altas: number; bajas: number; bonos: number | null };
 }
 
 // ───────────────────────── v10: Publicaciones ─────────────────────────
-export type TipoPublicacion = 'texto' | 'documentos' | 'imagenes' | 'video' | 'trabajo';
+export type TipoPublicacion = 'texto' | 'documentos' | 'imagenes' | 'video';   // v11: se retiró 'trabajo'
 export type EstadoPublicacion = 'borrador' | 'publicada' | 'archivada';
 
 export interface AdjuntoPublicacion {
   id: number; nombre: string; mime: string; tamano: number; ancho: number | null; alto: number | null;
   es_imagen: boolean; url: string; miniatura: string;
-}
-
-/** Hoja congelada de un trabajo publicado (mismos datos que HojaDatos, sin edición). */
-export interface HojaPublicada {
-  nombre: string;
-  columnas: { id: number; ancho: number }[];
-  filas: { id: number; alto: number }[];
-  estilos: Record<number, import('./features/hojas/motor/tipos').Estilo>;
-  celdas: import('./features/hojas/motor/tipos').Celda[];
-  combinadas: Combinada[];
-  imagenes: ImagenHoja[];
 }
 
 export interface Publicacion {
@@ -263,7 +157,7 @@ export interface Publicacion {
   autor: { id: number; nombre: string; rol: string | null };
   publicada: string | null; publicada_iso: string | null; caduca: string | null;
   adjuntos: AdjuntoPublicacion[];
-  trabajo: { libro_nombre: string; version: number; fecha: string | null; hojas: string[]; libro_id: number | null; libro_disponible: boolean | null; contenido?: HojaPublicada[] } | null;
+  trabajo: null;   // v11: ya no existe el tipo «trabajo de la plataforma»
   leida: boolean; favorita: boolean; puede_editar: boolean;
   audiencia: 'todos' | 'roles' | 'usuarios'; audiencia_ids?: (string | number)[]; lecturas?: number;
 }
@@ -277,5 +171,5 @@ export interface DatosPublicacion {
   tipo?: TipoPublicacion; titulo?: string; cuerpo?: string; categoria?: string; etiquetas?: string[];
   audiencia?: Publicacion['audiencia']; audiencia_ids?: (string | number)[]; estado?: 'borrador' | 'publicada';
   fijada?: boolean; oficial?: boolean; permite_descarga?: boolean; permite_copia?: boolean;
-  video_url?: string; libro_id?: number | null; caduca_at?: string | null;
+  video_url?: string; caduca_at?: string | null;
 }

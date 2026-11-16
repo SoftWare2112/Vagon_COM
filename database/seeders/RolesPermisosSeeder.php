@@ -11,14 +11,14 @@ class RolesPermisosSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach (Permiso::cases() as $p) {
-            PermisoModel::firstOrCreate(['nombre' => $p->value]);
+        foreach (Permiso::vigentes() as $p) {
+            PermisoModel::updateOrCreate(['nombre' => $p->value], ['descripcion' => $p->descripcion()]);
         }
 
         $descripciones = [
             'admin_rh' => 'Administrador (RH): control total',
-            'supervisor' => 'Supervisor: consulta, carga de archivos, exportación e histórico (solo lectura)',
-            'lector' => 'Lector (Jefe / Nóminas): consulta y exportación',
+            'supervisor' => 'Supervisor: consulta de empleados y publicaciones',
+            'lector' => 'Lector: consulta de empleados y publicaciones',
         ];
 
         foreach (Permiso::porRol() as $rol => $permisos) {

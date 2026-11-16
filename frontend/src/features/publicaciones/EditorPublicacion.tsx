@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { librosApi, publicacionesApi } from '../../api/endpoints';
+import { publicacionesApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { useAuth } from '../../auth/AuthContext';
 import { Aviso } from '../../components/Aviso';
@@ -12,7 +12,7 @@ import { iconoArchivo, PROVEEDORES, tamano, TIPOS } from './piezas';
 const ACEPTA: Record<TipoPublicacion, string> = {
   imagenes: '.jpg,.jpeg,.png,.gif,.webp',
   documentos: '.pdf,.xlsx,.xls,.docx,.doc,.pptx,.csv,.txt,.jpg,.jpeg,.png',
-  texto: '.jpg,.jpeg,.png,.gif,.webp,.pdf', video: '', trabajo: '',
+  texto: '.jpg,.jpeg,.png,.gif,.webp,.pdf', video: '',
 };
 
 /** Detecta en el navegador el proveedor del enlace (la validación definitiva la hace el servidor). */
@@ -38,10 +38,9 @@ export function EditorPublicacion() {
   const existente = useQuery({ queryKey: ['publicacion', editarId], queryFn: () => publicacionesApi.obtener(editarId!), enabled: editarId !== null });
   const { data: audiencias } = useQuery({ queryKey: ['publicaciones-audiencias'], queryFn: publicacionesApi.audiencias });
   const { data: categorias = [] } = useQuery({ queryKey: ['publicaciones-categorias'], queryFn: publicacionesApi.categorias });
-  const { data: libros = [] } = useQuery({ queryKey: ['libros', { q: '', todos: false }], queryFn: () => librosApi.listar(), enabled: puede('hojas.ver') });
 
   const [tipo, setTipo] = useState<TipoPublicacion | null>(null);
-  const [d, setD] = useState<DatosPublicacion>({ titulo: '', cuerpo: '', categoria: '', etiquetas: [], audiencia: 'todos', audiencia_ids: [], permite_descarga: true, permite_copia: true, video_url: '', libro_id: null, caduca_at: null });
+  const [d, setD] = useState<DatosPublicacion>({ titulo: '', cuerpo: '', categoria: '', etiquetas: [], audiencia: 'todos', audiencia_ids: [], permite_descarga: true, permite_copia: true, video_url: '', caduca_at: null });
   const [etiquetaTxt, setEtiquetaTxt] = useState('');
   const [archivos, setArchivos] = useState<File[]>([]);
   const [vistaPrevia, setVistaPrevia] = useState(false);
@@ -110,16 +109,13 @@ export function EditorPublicacion() {
     const datos: DatosPublicacion = {
       ...d, categoria: d.categoria?.trim() || undefined,
       video_url: tipo === 'video' ? d.video_url : undefined,
-      libro_id: tipo === 'trabajo' ? d.libro_id : undefined,
       audiencia_ids: d.audiencia === 'todos' ? [] : d.audiencia_ids,
       fijada: moderador ? d.fijada : undefined, oficial: moderador ? d.oficial : undefined,
     };
     try {
       let p: Publicacion;
       if (actual) {
-        const { libro_id: _l, ...cambios } = datos;   // el libro solo se elige al crear; después se usa "Actualizar publicación"
-        void _l;
-        p = await publicacionesApi.actualizar(actual.id, { ...cambios, video_url: tipo === 'video' ? d.video_url : undefined });
+        p = await publicacionesApi.actualizar(actual.id, { ...datos, video_url: tipo === 'video' ? d.video_url : undefined });
         if (estado === 'publicada' && p.estado !== 'publicada') p = await publicacionesApi.publicar(p.id);
       } else {
         setProgreso(0);
@@ -143,7 +139,7 @@ export function EditorPublicacion() {
         <h1>Nueva publicación</h1>
         <p className="tenue">¿Qué quieres compartir?</p>
         <div className="tipos-pub">
-          {(Object.keys(TIPOS) as TipoPublicacion[]).filter((t) => t !== 'trabajo' || puede('hojas.ver')).map((t) => (
+          {(Object.keys(TIPOS) as TipoPublicacion[]).map((t) => (
             <button key={t} type="button" className="tipo-pub" onClick={() => setTipo(t)}>
               <span className="tipo-pub-icono" aria-hidden>{TIPOS[t].icono}</span>
               <strong>{TIPOS[t].texto}</strong><small>{TIPOS[t].detalle}</small>
@@ -230,24 +226,6 @@ export function EditorPublicacion() {
             </label>
           )}
 
-          {tipo === 'trabajo' && !actual && (
-            <div className="campo">
-              <span>Libro a publicar</span>
-              {libros.length === 0 && <p className="tenue">No tienes libros todavía. Crea uno en <Link to="/hojas">Mis hojas</Link>.</p>}
-              <div className="lista-libros-elegir">
-                {libros.map((l) => (
-                  <label key={l.id} className={`opcion-libro ${d.libro_id === l.id ? 'activa' : ''}`}>
-                    <input type="radio" name="libro" checked={d.libro_id === l.id} onChange={() => set({ libro_id: l.id, titulo: d.titulo || l.nombre })} />
-                    <span><strong>{l.nombre}</strong><small className="tenue">{l.hojas} pestaña(s) · {l.actualizado}</small></span>
-                  </label>
-                ))}
-              </div>
-              <small className="tenue">Se publica una copia de solo lectura. Lo que sigas editando en tu libro no se verá hasta que uses «Actualizar publicación».</small>
-            </div>
-          )}
-          {tipo === 'trabajo' && actual?.trabajo && (
-            <p className="tenue">Libro publicado: <strong>{actual.trabajo.libro_nombre}</strong> (versión {actual.trabajo.version}). Para publicar los cambios del libro usa «Actualizar publicación» en la publicación.</p>
-          )}
         </div>
 
         <aside className="editor-pub-lateral">
@@ -301,9 +279,6 @@ export function EditorPublicacion() {
             <h2 className="seccion-titulo">Opciones</h2>
             {(tipo === 'documentos' || tipo === 'imagenes' || tipo === 'texto') && (
               <label className="check"><input type="checkbox" checked={!!d.permite_descarga} onChange={(e) => set({ permite_descarga: e.target.checked })} /> Permitir descargar los archivos</label>
-            )}
-            {tipo === 'trabajo' && (
-              <label className="check"><input type="checkbox" checked={!!d.permite_copia} onChange={(e) => set({ permite_copia: e.target.checked })} /> Permitir «Hacer una copia en mi espacio»</label>
             )}
             {moderador && <>
               <label className="check"><input type="checkbox" checked={!!d.fijada} onChange={(e) => set({ fijada: e.target.checked })} /> Fijar arriba del muro</label>

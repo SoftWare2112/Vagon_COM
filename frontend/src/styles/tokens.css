@@ -19,4 +19,6 @@
   --sombra: 0 1px 3px rgb(0 0 0 / 0.08), 0 4px 12px rgb(0 0 0 / 0.04);
   --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --toque: 44px;  /* tamaño mínimo táctil */
+  /* v12: series de las gráficas (orden fijo, validado para daltonismo; los 3 primeros pasan en todas las combinaciones) */
+  --serie-1: #2a78d6; --serie-2: #eb6834; --serie-3: #1baf7a; --serie-4: #eda100;
 }

@@ -1,7 +1,7 @@
 import { http, csrf } from './http';
 import type {
-  Carga, Columna, ColumnaCatalogo, DatosPublicacion, Estadisticas, FiltrosHistorial, FiltrosPublicaciones, Publicacion, HojaDatos, HojaGuardado, HojaPlantillaResumen, LibroDetalle, LibroResumen, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
-  RolesRespuesta, TablaRespuesta, TipoColumna, Usuario,
+  Acumulados, Alerta, CalculoNomina, Captura, ConceptoNomina, IndicadoresRespuesta, ListaDeRaya, PeriodoHistorial, Recibo, ReciboLista, Respaldo, DatosEmpleado, DatosPublicacion, Empleado, EmpleadoResumen, Empresa, FiltrosPublicaciones,
+  Paginado, PeriodoNomina, Periodicidad, Permiso, Publicacion, RolesRespuesta, TablaFiscal, TipoContrato, Usuario,
 } from '../types';
 
 /** Capa de servicios: los componentes nunca escriben URLs directamente. */
@@ -26,143 +26,6 @@ export const authApi = {
     http.put('/api/auth/password', p),
 };
 
-export const registrosApi = {
-  tabla: async (f: Filtros) => (await http.get<TablaRespuesta>('/api/registros', { params: limpiar(f) })).data,
-  /** v6: toda la tabla (sin paginar) con la estructura del archivo de RH, para imprimir. */
-  impresion: async (f: Filtros) => (await http.get<ReporteRh>('/api/registros/impresion', { params: limpiar({ ...f, page: undefined }) })).data,
-  resumen: async (registroId: number) => (await http.get<Resumen>(`/api/registros/${registroId}/resumen`)).data,
-  /** Solo se envían las columnas que cambiaron; `version` = la que vio el usuario (bloqueo optimista). */
-  actualizar: async (registroId: number, version: number, valores: Fila['valores']) =>
-    (await http.patch<Fila>(`/api/registros/${registroId}`, { version, valores })).data,
-  eliminar: (registroId: number) => http.delete<{ message: string }>(`/api/registros/${registroId}`),
-  crearEmpleado: (p: { nombre_completo: string; puesto?: string; fecha_ingreso: string; periodo_id?: number }) =>
-    http.post('/api/empleados', p),
-};
-
-/** v8: hojas de cálculo. */
-/** v9: libros personales (cada usuario ve los suyos; hojas.ver_todas ve los de todos). */
-export const librosApi = {
-  listar: async (p: { q?: string; todos?: boolean } = {}) =>
-    (await http.get<LibroResumen[]>('/api/libros', { params: limpiar({ q: p.q, todos: p.todos ? 1 : undefined }) })).data,
-  personal: async () => (await http.get<LibroDetalle>('/api/libros/personal')).data,
-  crear: async (nombre: string, plantillaId?: number) => (await http.post<LibroDetalle>('/api/libros', { nombre, plantilla_id: plantillaId })).data,
-  importar: async (archivo: File, nombre?: string, onProgreso?: (pct: number) => void) => {
-    const fd = new FormData();
-    fd.append('archivo', archivo);
-    if (nombre) fd.append('nombre', nombre);
-    return (await http.post<LibroDetalle>('/api/libros/importar', fd, {
-      timeout: 180_000,
-      onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
-    })).data;
-  },
-  obtener: async (id: number) => (await http.get<LibroDetalle>(`/api/libros/${id}`)).data,
-  renombrar: (id: number, nombre: string) => http.patch(`/api/libros/${id}`, { nombre }),
-  eliminar: (id: number) => http.delete(`/api/libros/${id}`),
-  agregarHoja: async (id: number) => (await http.post<LibroDetalle>(`/api/libros/${id}/hojas`, {})).data,
-};
-
-export const hojasApi = {
-  plantillas: async () => (await http.get<HojaPlantillaResumen[]>('/api/hoja-plantillas')).data,
-  obtener: async (id: number) => (await http.get<HojaDatos>(`/api/hojas/${id}`)).data,
-  /** Renombra la pestaña. */
-  renombrar: (id: number, nombre: string) => http.patch(`/api/hojas/${id}`, { nombre }),
-  /** Borra la pestaña y devuelve el libro actualizado. */
-  eliminar: async (id: number) => (await http.delete<LibroDetalle>(`/api/hojas/${id}`)).data,
-  guardar: async (id: number, cambios: unknown[], formatos: unknown[]) =>
-    (await http.patch<HojaGuardado>(`/api/hojas/${id}/celdas`, { cambios, formatos })).data,
-  /** despuesDe: id de fila; 0 = al inicio; null = al final. */
-  insertarFilas: async (id: number, despuesDe: number | null, cantidad = 1) =>
-    (await http.post<HojaDatos>(`/api/hojas/${id}/filas`, despuesDe === 0 ? { al_inicio: true, cantidad } : { despues_de: despuesDe, cantidad })).data,
-  eliminarFila: async (id: number, fila: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/filas/${fila}`)).data,
-  insertarColumnas: async (id: number, despuesDe: number | null, cantidad = 1) =>
-    (await http.post<HojaDatos>(`/api/hojas/${id}/columnas`, despuesDe === 0 ? { al_inicio: true, cantidad } : { despues_de: despuesDe, cantidad })).data,
-  eliminarColumna: async (id: number, columna: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/columnas/${columna}`)).data,
-  ancho: (id: number, columna: number, ancho: number) => http.patch(`/api/hojas/${id}/columnas/${columna}`, { ancho }),
-  // v9: combinar celdas e imágenes
-  combinar: async (id: number, r: { f: number; c: number; f2: number; c2: number }) => (await http.post<HojaDatos>(`/api/hojas/${id}/combinar`, r)).data,
-  separar: async (id: number, combinada: number) => (await http.delete<HojaDatos>(`/api/hojas/${id}/combinadas/${combinada}`)).data,
-  eliminarImagen: (id: number, imagen: number) => http.delete(`/api/hojas/${id}/imagenes/${imagen}`),
-  /** La imagen se pide con la sesión y se muestra como blob (no hay enlaces públicos). */
-  imagen: async (url: string) => (await http.get<Blob>(url, { responseType: 'blob' })).data,
-};
-
-/** v6: datos de la pantalla Gráficas. */
-export const estadisticasApi = {
-  obtener: async (periodoId?: number) => (await http.get<Estadisticas>('/api/estadisticas', { params: limpiar({ periodo_id: periodoId }) })).data,
-};
-
-export const catalogosApi = {
-  puestos: async () => (await http.get<{ id: number; nombre: string }[]>('/api/puestos')).data,
-  periodos: async () => (await http.get<{ id: number; etiqueta: string }[]>('/api/periodos')).data,
-};
-
-export const cargasApi = {
-  /** v9: historial de importaciones (nómina y libros) con búsqueda, filtros, orden y papelera. */
-  historial: async (f: FiltrosHistorial = {}) =>
-    (await http.get<Paginado<Carga>>('/api/cargas', { params: limpiar({ ...f, papelera: f.papelera ? 1 : undefined }) })).data,
-  quitar: async (id: number, conLibro = false) =>
-    (await http.delete<{ message: string }>(`/api/cargas/${id}`, { params: conLibro ? { con_libro: 1 } : {} })).data,
-  restaurar: async (id: number) => (await http.post<{ message: string }>(`/api/cargas/${id}/restaurar`)).data,
-  limpiar: async (alcance: 'mias' | 'todas', tipo?: 'nomina' | 'libro') =>
-    (await http.post<{ message: string; cantidad: number }>('/api/cargas/limpiar', { alcance, tipo })).data,
-  /** periodo: fechas dd/mm/aaaa que RH escribe cuando el encabezado del periodo está mal o no viene. */
-  subir: async (archivo: File, anio: number, onProgreso?: (pct: number) => void, hoja?: string, periodo?: { inicio: string; fin: string }) => {
-    const fd = new FormData();
-    fd.append('archivo', archivo);
-    fd.append('anio', String(anio));
-    if (hoja) fd.append('hoja', hoja);
-    if (periodo) {
-      fd.append('periodo_inicio', periodo.inicio);
-      fd.append('periodo_fin', periodo.fin);
-    }
-    const r = await http.post<{ data: Carga }>('/api/cargas', fd, {
-      onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
-    });
-    return r.data.data;
-  },
-  detalle: async (id: number) => (await http.get<{ data: Carga }>(`/api/cargas/${id}`)).data.data,
-  previsualizar: async (id: number) => (await http.get<Previsualizacion>(`/api/cargas/${id}/previsualizar`)).data,
-  /** confirmar: RH revisó las advertencias marcadas (columnas que faltan, domingos, duración del periodo). */
-  aplicar: async (id: number, modo: 'REEMPLAZAR' | 'MANTENER', confirmar = false) =>
-    (await http.post<{ message: string; resumen: Record<string, number> }>(`/api/cargas/${id}/aplicar`, { modo, confirmar })).data,
-  descartar: (id: number) => http.post(`/api/cargas/${id}/descartar`),
-  /** v7: el mismo Excel con las celdas con problema marcadas y una hoja con la lista. */
-  descargarErrores: async (id: number, archivo: string) => {
-    const r = await http.get(`/api/cargas/${id}/errores`, { responseType: 'blob' });
-    const url = URL.createObjectURL(r.data as Blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `errores_${archivo.replace(/\.[^.]+$/, '')}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-  },
-};
-
-export const exportacionesApi = {
-  generar: async (formato: 'PDF' | 'EXCEL', f: Filtros) =>
-    (await http.post<{ id: number; nombre: string }>('/api/exportaciones', { formato, ...limpiar(f) })).data,
-  historial: async () =>
-    (await http.get<Paginado<{ id: number; nombre: string; formato: string; filas: number; usuario: string; fecha: string }>>('/api/exportaciones')).data,
-  /** Descarga como blob (la ruta exige sesión; no hay URLs públicas). */
-  descargar: async (id: number, nombre: string) => {
-    const r = await http.get(`/api/exportaciones/${id}/descargar`, { responseType: 'blob' });
-    const url = URL.createObjectURL(r.data as Blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nombre;
-    a.click();
-    URL.revokeObjectURL(url);
-  },
-};
-
-export const historicoApi = {
-  listar: async (f: object) => (await http.get<Paginado<{
-    id: number; numero_empleado: string; nombre_completo: string; periodo: string;
-    eliminado: string; eliminado_por: string; motivo: string; columnas: Columna[]; valores: Fila['valores'];
-  }>>('/api/historico', { params: limpiar(f) })).data,
-  restaurar: (id: number) => http.post<{ message: string }>(`/api/historico/${id}/restaurar`),
-};
-
 export const usuariosApi = {
   listar: async () => (await http.get<{ data: Usuario[] }>('/api/usuarios')).data.data,
   crear: (p: { name: string; email: string; rol_id: number }) => http.post('/api/usuarios', p),
@@ -171,23 +34,64 @@ export const usuariosApi = {
   desactivar: (id: number) => http.delete(`/api/usuarios/${id}`),
 };
 
-export const ajustesApi = {
-  obtener: async () => (await http.get<Record<string, string>>('/api/ajustes')).data,
-  guardar: async (p: Record<string, string>) => (await http.put<Record<string, string>>('/api/ajustes', p)).data,
+/** v11: expediente de empleados. */
+export const empleadosApi = {
+  listar: async (f: { q?: string; estado?: 'activo' | 'baja' | 'todos'; puesto_id?: number; incompletos?: boolean } = {}) =>
+    (await http.get<EmpleadoResumen[]>('/api/empleados', { params: limpiar({ ...f, incompletos: f.incompletos ? 1 : undefined }) })).data,
+  obtener: async (id: number) => (await http.get<Empleado>(`/api/empleados/${id}`)).data,
+  crear: async (d: DatosEmpleado) => (await http.post<Empleado>('/api/empleados', d)).data,
+  actualizar: async (id: number, d: DatosEmpleado) => (await http.patch<Empleado>(`/api/empleados/${id}`, d)).data,
+  baja: async (id: number, fecha: string, motivo: string) => (await http.post<Empleado>(`/api/empleados/${id}/baja`, { fecha, motivo })).data,
+  reactivar: async (id: number, fecha?: string) => (await http.post<Empleado>(`/api/empleados/${id}/reactivar`, { fecha })).data,
+  salario: async (id: number, d: { salario_mensual: number; desde: string; motivo?: string }) => (await http.post<Empleado>(`/api/empleados/${id}/salario`, d)).data,
+  contrato: async (id: number, d: { tipo: TipoContrato; inicio: string; fin?: string | null; notas?: string }) =>
+    (await http.post<Empleado>(`/api/empleados/${id}/contrato`, d)).data,
+  simular: async (id: number, p: { fecha?: string; faltas?: number; retardos?: number; domingos?: number } = {}) =>
+    (await http.get<CalculoNomina>(`/api/empleados/${id}/simular`, { params: limpiar(p) })).data,
+  alertas: async () => (await http.get<Alerta[]>('/api/empleados/alertas')).data,
 };
 
-export const columnasApi = {
-  listar: async () => (await http.get<ColumnaCatalogo[]>('/api/columnas')).data,
-  crear: async (p: { etiqueta: string; tipo: TipoColumna; despues_de?: string; antes_de?: string; alias?: string[] }) =>
-    (await http.post<ColumnaCatalogo>('/api/columnas', p)).data,
-  actualizar: (id: number, p: Partial<Pick<ColumnaCatalogo, 'etiqueta' | 'alias' | 'visible'>>) => http.patch(`/api/columnas/${id}`, p),
-  /** Simula (simular=true) o aplica el cambio de tipo; convierte los valores ya guardados. */
-  cambiarTipo: async (id: number, tipo: TipoColumna, opciones: { simular?: boolean; forzar?: boolean }) =>
-    (await http.patch<ReporteCambioTipo>(`/api/columnas/${id}/tipo`, { tipo, ...opciones })).data,
-  mover: async (id: number, orden: number) => (await http.post<ColumnaCatalogo[]>(`/api/columnas/${id}/mover`, { orden })).data,
-  activarDesactivar: (id: number) => http.delete(`/api/columnas/${id}`),
-  /** Mapeo asistido: el encabezado del Excel se guarda como otro nombre de esta columna. */
-  agregarAlias: async (id: number, alias: string) => (await http.post<ColumnaCatalogo>(`/api/columnas/${id}/alias`, { alias })).data,
+/** v11: configuración de nómina. */
+export const nominaApi = {
+  puestos: async () => (await http.get<{ id: number; nombre: string }[]>('/api/puestos')).data,
+  crearPuesto: async (nombre: string) => (await http.post<{ id: number; nombre: string }>('/api/puestos', { nombre })).data,
+  empresa: async () => (await http.get<Empresa>('/api/nomina/empresa')).data,
+  guardarEmpresa: async (d: Partial<Empresa>) => (await http.put<Empresa>('/api/nomina/empresa', d)).data,
+  conceptos: async () => (await http.get<ConceptoNomina[]>('/api/nomina/conceptos')).data,
+  crearConcepto: async (d: Partial<ConceptoNomina>) => (await http.post<ConceptoNomina>('/api/nomina/conceptos', d)).data,
+  actualizarConcepto: async (id: number, d: Partial<ConceptoNomina>) => (await http.patch<ConceptoNomina>(`/api/nomina/conceptos/${id}`, d)).data,
+  eliminarConcepto: (id: number) => http.delete(`/api/nomina/conceptos/${id}`),
+  tablas: async () => (await http.get<TablaFiscal[]>('/api/nomina/tablas')).data,
+  guardarTabla: async (d: { tipo: string; vigente_desde: string; datos: unknown; fuente?: string }) => (await http.post<TablaFiscal>('/api/nomina/tablas', d)).data,
+  eliminarTabla: (id: number) => http.delete(`/api/nomina/tablas/${id}`),
+  periodos: async (tipo: Periodicidad, ejercicio: number) => (await http.get<PeriodoNomina[]>('/api/nomina/periodos', { params: { tipo, ejercicio } })).data,
+  generarPeriodos: async (d: { tipo: Periodicidad; ejercicio: number; primer_dia?: string }) =>
+    (await http.post<{ message: string; nuevos: number }>('/api/nomina/periodos/generar', d)).data,
+  fechaPago: (id: number, fecha_pago: string) => http.patch(`/api/nomina/periodos/${id}`, { fecha_pago }),
+};
+
+/** v12: nómina del periodo, historial, sobre-recibos, reportes y respaldos. */
+export type FilaIncidencia = { empleado_id: number; faltas?: number; retardos?: number; domingos?: number; capturados?: Record<string, number>; notas?: string | null };
+export const nominaPeriodoApi = {
+  historial: async (ejercicio: number, tipo: Periodicidad) => (await http.get<PeriodoHistorial[]>('/api/nomina/historial', { params: { ejercicio, tipo } })).data,
+  captura: async (id: number) => (await http.get<Captura>(`/api/nomina/periodos/${id}/captura`)).data,
+  incidencias: async (id: number, filas: FilaIncidencia[]) => (await http.put<Captura>(`/api/nomina/periodos/${id}/incidencias`, { filas })).data,
+  calcular: async (id: number) => (await http.post<{ captura: Captura; avisos: string[] }>(`/api/nomina/periodos/${id}/calcular`)).data,
+  autorizar: async (id: number) => (await http.post<{ message: string; captura: Captura }>(`/api/nomina/periodos/${id}/autorizar`, { confirmar: true })).data,
+  reabrir: async (id: number, motivo: string) => (await http.post<{ message: string; captura: Captura }>(`/api/nomina/periodos/${id}/reabrir`, { motivo })).data,
+  recibos: async (empleado_id: number) => (await http.get<ReciboLista[]>('/api/nomina/recibos', { params: { empleado_id } })).data,
+  recibo: async (id: number) => (await http.get<Recibo>(`/api/nomina/recibos/${id}`)).data,
+  listaDeRaya: async (periodoId: number) => (await http.get<ListaDeRaya>(`/api/nomina/reportes/lista-de-raya/${periodoId}`)).data,
+  acumulados: async (p: { ejercicio: number; tipo: Periodicidad; empleado_id?: number }) => (await http.get<Acumulados>('/api/nomina/reportes/acumulados', { params: limpiar(p) })).data,
+  respaldos: async () => (await http.get<Respaldo[]>('/api/nomina/respaldos')).data,
+  crearRespaldo: async (motivo: string) => (await http.post<Respaldo>('/api/nomina/respaldos', { motivo })).data,
+  descargarRespaldo: (archivo: string) => descargarArchivo(`/api/nomina/respaldos/${archivo}`, archivo),
+  reconstruir: async (ejercicio?: number) =>
+    (await http.post<{ recibos: number; alterados: { recibo_id: number; empleado: string; periodo: string }[]; acumulados: number }>('/api/nomina/reconstruir', limpiar({ ejercicio }))).data,
+};
+
+export const indicadoresApi = {
+  obtener: async (ejercicio: number, agrupar: 'quincena' | 'mes') => (await http.get<IndicadoresRespuesta>('/api/indicadores', { params: { ejercicio, agrupar } })).data,
 };
 
 export const rolesApi = {
@@ -240,7 +144,5 @@ export const publicacionesApi = {
     return (await http.post<Publicacion>(`/api/publicaciones/${id}/adjuntos`, fd, { timeout: 300_000 })).data;
   },
   quitarAdjunto: async (id: number, adjunto: number) => (await http.delete<Publicacion>(`/api/publicaciones/${id}/adjuntos/${adjunto}`)).data,
-  actualizarVersion: async (id: number) => (await http.post<Publicacion>(`/api/publicaciones/${id}/version`)).data,
-  copiar: async (id: number) => (await http.post<LibroDetalle>(`/api/publicaciones/${id}/copiar`)).data,
   lecturas: async (id: number) => (await http.get<{ id: number; nombre: string; leida: string }[]>(`/api/publicaciones/${id}/lecturas`)).data,
 };

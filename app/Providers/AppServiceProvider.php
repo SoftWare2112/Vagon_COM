@@ -3,8 +3,6 @@
 namespace App\Providers;
 
 use App\Models\User;
-use App\Repositories\Contracts\RegistroRepository;
-use App\Repositories\Eloquent\EloquentRegistroRepository;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,7 +14,6 @@ class AppServiceProvider extends ServiceProvider
 {
     /** Inyección de dependencias: interfaz -> implementación (principio D de SOLID). */
     public array $bindings = [
-        RegistroRepository::class => EloquentRegistroRepository::class,
     ];
 
     public function boot(): void

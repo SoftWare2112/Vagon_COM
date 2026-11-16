@@ -5,7 +5,6 @@ export const TIPOS: Record<TipoPublicacion, { texto: string; icono: string; deta
   documentos: { texto: 'Documentos', icono: '🗎', detalle: 'PDF, Excel, Word, PowerPoint…' },
   imagenes: { texto: 'Imágenes', icono: '🖼', detalle: 'Fotos o gráficos, en galería' },
   video: { texto: 'Video', icono: '▶', detalle: 'Un enlace de YouTube, Vimeo, Drive, Stream…' },
-  trabajo: { texto: 'Trabajo de la plataforma', icono: '▦', detalle: 'Una copia de solo lectura de uno de tus libros' },
 };
 
 export const PROVEEDORES: Record<string, string> = {

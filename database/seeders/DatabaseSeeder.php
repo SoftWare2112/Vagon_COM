@@ -2,15 +2,17 @@
 
 namespace Database\Seeders;
 
-use App\Models\Ajuste;
-use App\Models\Columna;
 use App\Models\Puesto;
 use App\Models\Rol;
 use App\Models\User;
-use App\Support\CatalogoColumnas;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * v11: roles y permisos, puestos base y el contador de números de empleado.
+ * La empresa, el catálogo de conceptos y las tablas fiscales los crea la migración 000012.
+ * NO se crean empleados ni datos ficticios: el expediente se captura a mano en la plataforma.
+ */
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
@@ -20,21 +22,11 @@ class DatabaseSeeder extends Seeder
         foreach (config('reportes.puestos_base') as $p) {
             Puesto::firstOrCreate(['nombre' => $p]);
         }
-
-        // Catálogo de columnas en el orden del Excel final (RH puede agregar más desde la web)
-        foreach (CatalogoColumnas::SISTEMA as $i => $c) {
-            Columna::updateOrCreate(['clave' => $c['clave']], [
-                'etiqueta' => $c['etiqueta'], 'tipo' => $c['tipo'], 'origen' => $c['origen'], 'orden' => $i + 1,
-                'alias' => $c['alias'], 'obligatoria' => $c['obligatoria'] ?? false, 'editable' => $c['editable'] ?? true,
-            ]);
-        }
-
         DB::table('secuencias')->insertOrIgnore(['clave' => 'numero_empleado', 'valor' => 0]);
-        Ajuste::guardar('modo_etl_predeterminado', 'MANTENER');
-        Ajuste::guardar('filas_esperadas', '48');
 
-        // Usuarios de DESARROLLO (no ejecutar en producción: ahí el admin se crea con `php artisan tinker`)
-        if (app()->environment('local', 'testing')) {
+        // Usuarios SOLO para las pruebas automáticas. En la instalación real el administrador se crea con:
+        //   php artisan reportes:usuario correo@empresa.com --rol=admin_rh
+        if (app()->environment('testing')) {
             foreach (['admin_rh' => 'admin@demo.test', 'supervisor' => 'supervisor@demo.test', 'lector' => 'lector@demo.test'] as $rol => $email) {
                 User::firstOrCreate(['email' => $email], [
                     'name' => ucfirst(str_replace('_', ' ', $rol)),

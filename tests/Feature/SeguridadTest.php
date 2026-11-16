@@ -40,24 +40,22 @@ class SeguridadTest extends TestCase
         Notification::assertSentTo(User::where('email', 'lector@demo.test')->first(), CuentaBloqueada::class);
     }
 
-    public function test_lector_puede_ver_y_exportar_pero_no_editar_ni_subir(): void
+    public function test_lector_consulta_empleados_pero_no_los_cambia(): void
     {
         $this->actingAs(User::where('email', 'lector@demo.test')->first());
-        $this->getJson('/api/registros')->assertOk();
+        $this->getJson('/api/empleados')->assertOk();
         $this->postJson('/api/empleados', [])->assertForbidden();
-        $this->postJson('/api/columnas', [])->assertForbidden();
-        $this->postJson('/api/cargas', [])->assertForbidden();
-        $this->getJson('/api/historico')->assertForbidden();
+        $this->putJson('/api/nomina/empresa', [])->assertForbidden();
+        $this->getJson('/api/usuarios')->assertForbidden();
     }
 
-    public function test_supervisor_edita_ve_historico_pero_no_restaura_ni_gestiona_usuarios(): void
+    public function test_los_modulos_retirados_ya_no_existen(): void
     {
-        $sup = User::where('email', 'supervisor@demo.test')->first();
-        $this->assertTrue($sup->tienePermiso('registros.editar'));
-        $this->actingAs($sup);
-        $this->getJson('/api/historico')->assertOk();
-        $this->postJson('/api/historico/1/restaurar')->assertForbidden();
-        $this->getJson('/api/usuarios')->assertForbidden();
+        $this->actingAs(User::where('email', 'admin@demo.test')->first());
+        foreach (['/api/registros', '/api/cargas', '/api/libros', '/api/historico', '/api/columnas'] as $ruta) {
+            $this->getJson($ruta)->assertNotFound();
+        }
+        $this->assertFalse(User::where('email', 'admin@demo.test')->first()->tienePermiso('registros.ver'));
     }
 
     public function test_admin_cambia_permisos_de_un_rol_desde_la_web(): void
@@ -65,22 +63,23 @@ class SeguridadTest extends TestCase
         $this->actingAs(User::where('email', 'admin@demo.test')->first());
         $sup = Rol::where('nombre', 'supervisor')->first();
 
-        $this->putJson("/api/roles/{$sup->id}/permisos", ['permisos' => ['registros.ver', 'historico.ver', 'historico.restaurar']])->assertOk();
-        $this->assertTrue(User::where('email', 'supervisor@demo.test')->first()->tienePermiso('historico.restaurar'));
-        $this->assertFalse(User::where('email', 'supervisor@demo.test')->first()->tienePermiso('registros.editar'));
+        $this->putJson("/api/roles/{$sup->id}/permisos", ['permisos' => ['empleados.ver', 'empleados.gestionar']])->assertOk();
+        $this->assertTrue(User::where('email', 'supervisor@demo.test')->first()->tienePermiso('empleados.gestionar'));
+        $this->assertFalse(User::where('email', 'supervisor@demo.test')->first()->tienePermiso('publicaciones.crear'));
+        $this->putJson("/api/roles/{$sup->id}/permisos", ['permisos' => ['registros.ver']])->assertStatus(422);   // permiso retirado
     }
 
     public function test_admin_no_puede_quitarse_la_gestion_de_usuarios(): void
     {
         $this->actingAs(User::where('email', 'admin@demo.test')->first());
         $admin = Rol::where('nombre', 'admin_rh')->first();
-        $this->putJson("/api/roles/{$admin->id}/permisos", ['permisos' => ['registros.ver']])->assertOk();
+        $this->putJson("/api/roles/{$admin->id}/permisos", ['permisos' => ['empleados.ver']])->assertOk();
         $this->assertTrue(User::where('email', 'admin@demo.test')->first()->tienePermiso('usuarios.gestionar'));
     }
 
     public function test_sin_sesion_no_hay_acceso(): void
     {
-        $this->getJson('/api/registros')->assertUnauthorized();
+        $this->getJson('/api/empleados')->assertUnauthorized();
     }
 
     public function test_recuperacion_no_revela_si_el_correo_existe(): void

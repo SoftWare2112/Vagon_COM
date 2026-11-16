@@ -1,117 +1,85 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import { cargasApi, librosApi, publicacionesApi } from '../../api/endpoints';
+import { Link } from 'react-router-dom';
+import { empleadosApi, nominaApi, publicacionesApi } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
-import { EditorLibro } from '../hojas/EditorLibro';
-import { DashboardPage } from '../registros/DashboardPage';
+import type { Alerta } from '../../types';
+import { dinero, fecha, PERIODICIDADES } from '../../utils/formato';
 
-type Pestana = 'mi-hoja' | 'incidencias' | 'recientes';
-const CLAVE = 'inicio.pestana';
+const ICONO: Record<Alerta['tipo'], string> = { contrato: '📄', tres_meses: '🎉', aniversario: '🏖', incompleto: '⚠', tablas: '🧾' };
 
-function leer(): Pestana | null {
-  try { return (localStorage.getItem(CLAVE) as Pestana | null) ?? null; } catch { return null; }
-}
-function guardar(p: Pestana) {
-  try { localStorage.setItem(CLAVE, p); } catch { /* sin almacenamiento: no pasa nada */ }
-}
-
-/**
- * v9 — Pantalla de Inicio: Dashboard y Hojas juntos.
- *  - Mi hoja: una hoja ya creada para escribir, armar una tabla o importar un Excel.
- *  - Incidencias: la tabla de la quincena (la nómina es compartida).
- *  - Recientes: últimos libros e importaciones.
- * Se recuerda la última pestaña elegida (en este navegador).
- */
+/** v11 — Inicio: resumen de la plantilla, próximo pago, avisos de contratos y publicaciones recientes. */
 export function InicioPage() {
   const { puede, usuario } = useAuth();
-  const [params, setParams] = useSearchParams();
-  const disponibles: { id: Pestana; texto: string }[] = [
-    ...(puede('hojas.crear') ? [{ id: 'mi-hoja' as const, texto: 'Mi hoja' }] : []),
-    ...(puede('registros.ver') ? [{ id: 'incidencias' as const, texto: 'Incidencias' }] : []),
-    ...(puede('hojas.ver') ? [{ id: 'recientes' as const, texto: 'Recientes' }] : []),
-  ];
-  const pedida = (params.get('pestana') as Pestana | null) ?? leer();
-  const [pestana, setPestana] = useState<Pestana | undefined>(
-    disponibles.find((d) => d.id === pedida)?.id ?? disponibles[0]?.id,
-  );
+  const verEmpleados = puede('empleados.ver');
+  const { data: empleados = [] } = useQuery({ queryKey: ['empleados', { estado: 'activo' }], queryFn: () => empleadosApi.listar({ estado: 'activo' }), enabled: verEmpleados });
+  const { data: alertas = [] } = useQuery({ queryKey: ['alertas'], queryFn: empleadosApi.alertas, enabled: verEmpleados });
+  const { data: empresa } = useQuery({ queryKey: ['empresa'], queryFn: nominaApi.empresa, enabled: verEmpleados, staleTime: 300_000 });
+  const anio = new Date().getFullYear();
+  const { data: periodos = [] } = useQuery({
+    queryKey: ['periodos', empresa?.periodicidad, anio], queryFn: () => nominaApi.periodos(empresa!.periodicidad, anio), enabled: !!empresa,
+  });
+  const { data: pubs } = useQuery({ queryKey: ['publicaciones', { inicio: true }], queryFn: () => publicacionesApi.listar({}), enabled: puede('publicaciones.ver') });
 
-  if (!pestana) {
-    return <div className="vacio">Tu usuario aún no tiene acceso a ningún apartado. Pide a un administrador que te asigne un rol.</div>;
-  }
-
-  const elegir = (p: Pestana) => { setPestana(p); guardar(p); setParams({ pestana: p }, { replace: true }); };
+  const hoy = new Date().toISOString().slice(0, 10);
+  const proximo = periodos.find((p) => p.fecha_pago >= hoy);
+  const masa = empleados.reduce((s, e) => s + (e.salario_mensual ?? 0), 0);
+  const incompletos = empleados.filter((e) => e.faltantes.length > 0).length;
 
   return (
     <section className="inicio">
       <div className="inicio-cab">
-        <h1>Hola, {usuario?.name?.split(' ')[0]}</h1>
-        {disponibles.length > 1 && (
-          <div className="segmentado" role="tablist" aria-label="Apartados de inicio">
-            {disponibles.map((d) => (
-              <button key={d.id} type="button" role="tab" aria-selected={pestana === d.id} className={pestana === d.id ? 'activo' : ''} onClick={() => elegir(d.id)}>
-                {d.texto}
-              </button>
-            ))}
+        <div>
+          <h1>Hola, {usuario?.name?.split(' ')[0]}</h1>
+          <p className="tenue">{empresa?.nombre ?? 'Vagón COM'} · nómina {empresa ? PERIODICIDADES[empresa.periodicidad].toLowerCase() : ''}</p>
+        </div>
+        <div className="barra-acciones">
+          {puede('nomina.ver') && <Link className="btn btn-sec" to="/nomina">Nómina del periodo</Link>}
+          {puede('empleados.gestionar') && <Link className="btn" to="/empleados/nuevo">+ Alta de empleado</Link>}
+        </div>
+      </div>
+
+      {verEmpleados && (
+        <div className="kpis">
+          <Link className="kpi kpi-enlace" to="/empleados"><span className="tenue">Empleados activos</span><strong>{empleados.length}</strong>
+            <small className="tenue">{incompletos ? `${incompletos} con expediente incompleto` : 'Expedientes completos'}</small></Link>
+          <div className="kpi"><span className="tenue">Sueldos base al mes</span><strong>{dinero(masa)}</strong><small className="tenue">Antes de bonos e impuestos</small></div>
+          <div className="kpi"><span className="tenue">Próximo pago</span><strong>{proximo ? fecha(proximo.fecha_pago) : '—'}</strong>
+            <small className="tenue">{proximo ? proximo.etiqueta : periodos.length === 0 ? <Link to="/nomina/configuracion?pestana=periodos">Genera el calendario {anio}</Link> : `Sin periodos pendientes en ${anio}`}</small></div>
+          <div className="kpi"><span className="tenue">Avisos</span><strong>{alertas.length}</strong><small className="tenue">Contratos, bonos y aniversarios</small></div>
+        </div>
+      )}
+
+      <div className="inicio-rejilla">
+        {verEmpleados && (
+          <div className="tarjeta">
+            <h2 className="seccion-titulo">Avisos de la plantilla</h2>
+            {alertas.length === 0
+              ? <p className="tenue">{empleados.length === 0 ? 'Cuando captures empleados, aquí verás contratos por vencer, quién cumple 3 meses y aniversarios.' : 'Nada pendiente en los próximos 15 días.'}</p>
+              : <ul className="lista-alertas">
+                  {alertas.map((a, i) => (
+                    <li key={i} className={`alerta-${a.nivel}`}>
+                      <span aria-hidden>{ICONO[a.tipo]}</span>
+                      <span><Link to={a.empleado_id ? `/empleados/${a.empleado_id}` : '/nomina/configuracion?pestana=tablas'}><strong>{a.nombre}</strong></Link><small>{a.texto}</small></span>
+                    </li>
+                  ))}
+                </ul>}
+          </div>
+        )}
+        {puede('publicaciones.ver') && (
+          <div className="tarjeta">
+            <div className="seccion-cab"><h2 className="seccion-titulo">Publicaciones recientes</h2><Link className="btn-link" to="/publicaciones">Ver todas</Link></div>
+            {(pubs?.data ?? []).length === 0 ? <p className="tenue">No hay publicaciones todavía.</p> : (
+              <ul className="lista-simple">
+                {pubs!.data.slice(0, 5).map((p) => (
+                  <li key={p.id}><Link to={`/publicaciones/${p.id}`}>{!p.leida && <span className="punto-nuevo" aria-label="Nueva" />}<strong>{p.titulo}</strong></Link>
+                    <small className="tenue">{p.autor.nombre} · {p.publicada ?? 'borrador'}</small></li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>
-      {pestana === 'mi-hoja' && <EditorLibro personal />}
-      {pestana === 'incidencias' && <DashboardPage incrustado />}
-      {pestana === 'recientes' && <Recientes />}
+      {!verEmpleados && !puede('publicaciones.ver') && <div className="vacio">Tu usuario aún no tiene acceso a ningún apartado. Pide a un administrador que te asigne un rol.</div>}
     </section>
-  );
-}
-
-function Recientes() {
-  const { puede } = useAuth();
-  const libros = useQuery({ queryKey: ['libros', { q: '', todos: false }], queryFn: () => librosApi.listar() });
-  const importaciones = useQuery({
-    queryKey: ['cargas', 'recientes'], queryFn: () => cargasApi.historial({ orden: 'reciente' }),
-    enabled: puede('cargas.ver') || puede('hojas.crear'),
-  });
-
-  const publicaciones = useQuery({ queryKey: ['publicaciones', { vista: 'todas', page: 1 }], queryFn: () => publicacionesApi.listar({ vista: 'todas', page: 1 }), enabled: puede('publicaciones.ver') });
-
-  return (
-    <div className="recientes">
-      {publicaciones.data && (
-        <section>
-          <div className="seccion-cab"><h2>Publicaciones</h2><Link to="/publicaciones" className="btn-link">Ver todas</Link></div>
-          {publicaciones.data.data.length === 0 && <p className="tenue">Sin publicaciones todavía.</p>}
-          <ul className="lista-simple">
-            {publicaciones.data.data.slice(0, 5).map((p) => (
-              <li key={p.id}>
-                <Link to={`/publicaciones/${p.id}`}>{!p.leida && <span className="punto-nuevo" aria-label="Nueva" />}<strong>{p.titulo}</strong></Link>
-                <small className="tenue">{p.autor.nombre}{p.publicada ? ` · ${p.publicada}` : ''}</small>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section>
-        <div className="seccion-cab"><h2>Libros recientes</h2><Link to="/hojas" className="btn-link">Ver todos</Link></div>
-        {libros.data?.length === 0 && <p className="tenue">Aún no tienes libros.</p>}
-        <ul className="lista-simple">
-          {libros.data?.slice(0, 6).map((l) => (
-            <li key={l.id}><Link to={`/hojas/${l.id}`}><strong>{l.nombre}</strong></Link><small className="tenue">{l.hojas} pestaña(s) · {l.actualizado}</small></li>
-          ))}
-        </ul>
-      </section>
-      {importaciones.data && (
-        <section>
-          <div className="seccion-cab"><h2>Últimas importaciones</h2><Link to="/informes" className="btn-link">Ver historial</Link></div>
-          {importaciones.data.data.length === 0 && <p className="tenue">Sin importaciones todavía.</p>}
-          <ul className="lista-simple">
-            {importaciones.data.data.slice(0, 5).map((c) => (
-              <li key={c.id}>
-                <span>{c.tipo === 'libro' ? '▦' : '📋'} <strong>{c.archivo}</strong></span>
-                <small className="tenue">{c.tipo === 'libro' ? 'Excel como hoja' : 'Incidencias de nómina'} · {c.subida}{c.usuario ? ` · ${c.usuario}` : ''}</small>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
   );
 }

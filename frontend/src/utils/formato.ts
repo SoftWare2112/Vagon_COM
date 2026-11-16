@@ -1,32 +1,22 @@
-import type { TipoColumna } from '../types';
-
 const mxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 export const dinero = (v: number | null | undefined) => (v == null ? '—' : mxn.format(v));
-export const numero = (v: number | null | undefined) => (v == null ? '—' : String(Number(v)));
+export const numero = (v: number | null | undefined, decimales?: number) =>
+  v == null ? '—' : decimales === undefined ? String(Number(v)) : Number(v).toLocaleString('es-MX', { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 
-/** Valida dd/mm/aaaa (formato pedido por RH para filtros y capturas). */
-export function esFechaValida(txt: string): boolean {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(txt);
-  if (!m) return false;
-  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const f = new Date(a, mes - 1, d);
-  return f.getFullYear() === a && f.getMonth() === mes - 1 && f.getDate() === d;
+/** "2026-11-15" -> "15/11/2026" */
+export const fecha = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '—');
+
+/** "2026-11-15" -> "15 nov 2026" */
+export const fechaCorta = (iso: string | null | undefined) =>
+  iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '') : '—';
+
+/** Fecha de hoy en formato del sistema (YYYY-MM-DD, hora local). */
+export function hoyISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Autoformatea mientras se escribe: "15012018" -> "15/01/2018". */
-export function mascaraFecha(txt: string): string {
-  const s = txt.replace(/\D/g, '').slice(0, 8);
-  return [s.slice(0, 2), s.slice(2, 4), s.slice(4)].filter(Boolean).join('/');
-}
-
-/** Muestra un valor según el tipo de su columna. */
-export function formatear(v: unknown, tipo: TipoColumna): string {
-  if (v === null || v === undefined || v === '') return '';
-  if (tipo === 'dinero') return dinero(Number(v));
-  if (tipo === 'booleano') return v ? 'Sí' : 'No';
-  if (tipo === 'decimal' || tipo === 'entero') return numero(Number(v));
-  return String(v);
-}
-
-export const textoFaltas = (n: number) => (n === 0 ? 'Sin faltas' : n === 1 ? '1 falta' : `${n} faltas`);
+export const CONTRATOS = { capacitacion: 'Capacitación', prueba: 'Periodo de prueba', temporal: 'Temporal', indeterminado: 'Indeterminado' } as const;
+export const PERIODICIDADES = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' } as const;
+export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

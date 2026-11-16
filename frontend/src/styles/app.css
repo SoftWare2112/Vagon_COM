@@ -230,13 +230,6 @@ label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; c
 .tabla-datos summary { cursor: pointer; color: var(--muted); }
 
 /* ===== v7: asistente de carga en 3 pasos ===== */
-.pasos { display: flex; gap: .5rem; list-style: none; padding: 0; margin: 0 0 1rem; counter-reset: paso; }
-.pasos li { flex: 1; display: flex; align-items: center; gap: .4rem; font-size: .85rem; color: var(--muted); padding-bottom: .4rem; border-bottom: 3px solid var(--line); }
-.pasos li.actual { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
-.pasos li.hecho { color: var(--ok-ink); border-bottom-color: var(--ok-ink); }
-.pasos-num { display: inline-grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--line); font-size: .75rem; }
-.pasos li.actual .pasos-num { background: var(--accent); color: var(--accent-ink); }
-.pasos li.hecho .pasos-num { background: var(--ok-bg); color: var(--ok-ink); }
 .zona-icono { font-size: 1.8rem; margin: 0; color: var(--muted); }
 .opciones-carga { margin-top: .75rem; text-align: left; font-size: .85rem; }
 .opciones-carga summary { cursor: pointer; color: var(--muted); }
@@ -604,3 +597,190 @@ textarea { font: inherit; }
 }
 .enlace-texto { color: var(--info-ink); word-break: break-word; }
 .editor-pub-lateral .tarjeta { gap: .45rem; } .editor-pub-lateral .check { margin-top: 0; font-weight: 400; }
+
+/* ───────────── v11 · Nómina: empleados, expediente y configuración ───────────── */
+.fila-baja td { color: var(--muted); }
+.resumen-lista { margin: 0 0 8px; }
+.tabla-empleados .col-nombre a { font-weight: 600; color: var(--ink); }
+.tabla-empleados .etiqueta { margin-left: 6px; }
+.linea-sub { display: block; }
+
+.form-expediente { display: grid; gap: 16px; max-width: 980px; }
+.form-expediente h1 { margin: 0; }
+.seccion-form { border: 1px solid var(--line); display: grid; gap: 12px; }
+.seccion-form legend { font-weight: 700; padding: 0 6px; }
+fieldset.seccion-form > fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 12px; }
+.rejilla-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px 16px; align-items: start; }
+.rejilla-form small, .seccion-form label small { font-weight: 400; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo-con-boton { display: flex; gap: 6px; }
+.campo-con-boton input { flex: 1; min-width: 0; }
+.dias-semana { display: flex; flex-wrap: wrap; gap: 4px; }
+.dias-semana .dia { flex-direction: row; align-items: center; justify-content: center; min-width: 46px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: .85rem; user-select: none; }
+.dias-semana .dia input { position: absolute; opacity: 0; pointer-events: none; }
+.dias-semana .dia.activo { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.dias-semana .dia:focus-within { outline: 2px solid var(--editado); outline-offset: 1px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radio); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 2px; box-shadow: var(--sombra); color: inherit; text-decoration: none; }
+.kpi strong { font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.kpi-enlace:hover { border-color: var(--accent); }
+
+.expediente { display: grid; gap: 16px; }
+.expediente-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-end; }
+.expediente-cab h1 { margin: 2px 0 4px; }
+.expediente-cab p { margin: 0; }
+.expediente-cab .etiqueta { margin-left: 8px; }
+.expediente .kpis { margin: 0; }
+.expediente-rejilla, .inicio-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.datos { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.datos dt { color: var(--muted); }
+.datos dd { margin: 0; overflow-wrap: anywhere; }
+.linea-tiempo { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+.linea-tiempo li { position: relative; display: flex; flex-direction: column; }
+.linea-tiempo li::before { content: ''; position: absolute; left: -20px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+.simulador-entradas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin: 12px 0; }
+.recibo { border: 1px solid var(--line); border-radius: var(--radio); padding: 14px; display: grid; gap: 12px; transition: opacity .15s; }
+.recibo.cargando { opacity: .55; }
+.recibo-periodo { margin: 0; }
+.recibo-periodo .etiqueta { margin-left: 8px; }
+.recibo-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.recibo-col h3 { margin: 0 0 6px; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.recibo-col ul { list-style: none; margin: 0; padding: 0; }
+.recibo-col li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.recibo-col li > span:first-child { display: flex; flex-direction: column; }
+.recibo-total { display: flex; justify-content: space-between; font-weight: 700; margin: 6px 0 0; }
+.recibo-neto { display: flex; justify-content: space-between; align-items: baseline; background: var(--ok-bg); color: var(--ok-ink);
+  border-radius: var(--radio); padding: 12px 16px; }
+.recibo-neto strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.recibo-detalle { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.num, .recibo .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabla-compacta caption { text-align: left; font-weight: 700; padding: 0 0 6px; }
+.tabla-compacta td, .tabla-compacta th { padding: 5px 8px; }
+.fila-total td { font-weight: 700; border-top: 2px solid var(--ink); }
+.fila-actual td { background: var(--info-bg); }
+
+.lista-alertas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.lista-alertas li { display: flex; gap: 10px; padding: 8px 10px; border-radius: var(--radio); background: var(--info-bg); }
+.lista-alertas li.alerta-advertencia { background: var(--warn-bg); }
+.lista-alertas li.alerta-error { background: var(--bad-bg); }
+.lista-alertas li > span:last-child { display: flex; flex-direction: column; }
+.lista-alertas a { color: inherit; }
+
+.pestanas-config { margin-bottom: 16px; flex-wrap: wrap; }
+.rejilla-tablas { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-top: 12px; }
+.tabla-fiscal { display: grid; gap: 10px; align-content: start; }
+.tabla-fiscal h3 { margin: 0; font-size: 1rem; }
+.tabla-fiscal .lista-simple li { display: flex; flex-direction: row; justify-content: space-between; align-items: baseline; gap: 12px; }
+.reglas { border: 1px solid var(--line); border-radius: var(--radio); padding: 10px 14px; display: grid; gap: 8px; margin: 12px 0; }
+.reglas legend { font-weight: 600; padding: 0 4px; }
+label.en-linea { flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
+label.en-linea input { width: 90px; }
+.input-tabla { padding: 4px 6px; min-height: 0; }
+
+@media (max-width: 640px) {
+  .rejilla-tablas, .expediente-rejilla, .inicio-rejilla { grid-template-columns: 1fr; }
+  .datos { grid-template-columns: 1fr; }
+  .datos dt { margin-top: 6px; }
+}
+
+/* ───────────── v12 · Nómina del periodo, historial, reportes e indicadores ───────────── */
+.periodo-cab { display: flex; flex-direction: row; flex-wrap: wrap; padding: 12px 16px; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.periodo-cab h2 { margin: 0 0 2px; font-size: 1.15rem; }
+.periodo-cab p { margin: 0; }
+.pasos { list-style: none; display: flex; gap: 6px; margin: 0; padding: 0; flex-wrap: wrap; }
+.pasos li { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+.pasos-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--line); color: var(--ink); font-size: .8rem; font-weight: 700; }
+.pasos li.hecho { color: var(--ok-ink); border-color: var(--ok-bg); background: var(--ok-bg); }
+.pasos li.hecho .pasos-num { background: var(--ok-ink); color: #fff; }
+.pasos li.actual { color: var(--ink); border-color: var(--accent); font-weight: 600; }
+.pasos li.actual .pasos-num { background: var(--accent); color: var(--accent-ink); }
+.barra-nomina { margin: 12px 0; flex-wrap: wrap; }
+.btn-autorizar { background: var(--ok-ink); border-color: var(--ok-ink); color: #fff; }
+.kpis-nomina { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.kpi-destacado { border-color: var(--ok-ink); background: var(--ok-bg); }
+.avisos-calculo { margin-bottom: 12px; }
+.avisos-calculo summary { cursor: pointer; font-weight: 600; }
+.avisos-calculo ul { margin: 8px 0 0; padding-left: 20px; }
+.tabla-captura td { vertical-align: middle; }
+.tabla-captura .col-nombre a { font-weight: 600; color: var(--ink); }
+.input-celda { width: 72px; min-height: 34px; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.input-celda.editada { border-color: var(--editado); background: #f3f7fb; }
+.input-celda::-webkit-inner-spin-button { opacity: .4; }
+.tabla-captura td.neto { font-weight: 700; }
+.marca-aviso { color: var(--warn-ink); cursor: help; }
+.ayuda-captura { margin-top: 8px; }
+.select-periodo { min-width: 260px; }
+.resumen-autorizar { margin: 12px 0; }
+.caja-respaldo { border: 1px dashed var(--line); border-radius: var(--radio); padding: 10px 14px; margin: 12px 0; display: grid; gap: 6px; }
+.caja-respaldo p { margin: 0; }
+.herramientas { margin-top: 20px; }
+.lista-respaldos li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.fila-recibo { display: grid !important; grid-template-columns: 1fr auto; gap: 0 12px; }
+.fila-recibo small { grid-column: 1; }
+.fila-recibo strong { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.linea-tiempo li.mov-baja::before { background: var(--bad-ink); }
+.linea-tiempo li.mov-reingreso::before, .linea-tiempo li.mov-alta::before { background: var(--ok-ink); }
+
+.sobre-recibo { display: grid; gap: 12px; }
+.sobre-recibo-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 2px solid var(--ink); }
+.sobre-recibo-periodo { text-align: right; }
+.datos-recibo { grid-template-columns: max-content 1fr max-content 1fr; }
+.tabla-reporte th, .tabla-reporte td { white-space: nowrap; }
+.tabla-reporte th.col-deduccion { background: #4a3a3a; }
+.fila-deduccion td { background: #fbf8f8; }
+
+.interruptor { flex-direction: row !important; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radio); }
+.interruptor input { width: 20px; height: 20px; margin-top: 2px; }
+.confirmar-dato { display: flex; align-items: flex-start; gap: 6px; font-weight: 400; font-size: .85rem; background: var(--warn-bg); color: var(--warn-ink); padding: 6px 8px; border-radius: 6px; }
+.confirmar-dato label { display: inline; }
+
+.rejilla-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+.tarjeta-grafica { display: grid; gap: 4px; align-content: start; }
+.tarjeta-grafica p { margin: 0 0 6px; }
+.grafica { display: grid; gap: 6px; }
+.grafica-lienzo { position: relative; }
+.grafica-lienzo svg { width: 100%; height: auto; display: block; overflow: visible; }
+.grafica-rejilla { stroke: var(--line); stroke-width: 1; }
+.grafica-base { stroke: #9aa1ab; stroke-width: 1; }
+.grafica-eje { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.grafica-foco { fill: var(--ink); opacity: .05; }
+.grafica-leyenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .85rem; color: var(--ink); }
+.grafica-leyenda li { display: flex; align-items: center; gap: 6px; }
+.grafica-muestra { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.grafica-tooltip { position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--sombra); border-radius: 6px; padding: 6px 10px; display: grid; gap: 2px; font-size: .82rem; white-space: nowrap; z-index: 2; }
+.grafica-tooltip span { display: flex; align-items: center; gap: 6px; }
+
+@media (max-width: 640px) {
+  .rejilla-graficas { grid-template-columns: 1fr; }
+  .datos-recibo { grid-template-columns: max-content 1fr; }
+  .select-periodo { min-width: 0; width: 100%; }
+  .sobre-recibo-periodo { text-align: left; }
+}
+
+/* Impresión / «Guardar como PDF»: solo el contenido del reporte o del recibo */
+@media print {
+  .sidebar, .topbar, .velo, .no-imprimir, .modal-cab, .modal-pie, .btn, .btn-link { display: none !important; }
+  body, .principal, main { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  .tarjeta { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+  dialog.modal { position: static; box-shadow: none; border: 0; max-width: none; width: auto; }
+  .tabla-scroll { overflow: visible !important; }
+  .tabla-reporte { font-size: 9pt; }
+  .tabla thead th { background: #333 !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { size: landscape; margin: 12mm; }
+}
+@media print {
+  /* Con un recibo abierto en ventana, se imprime solo el recibo */
+  body:has(dialog.modal[open]) .contenido section > *:not(dialog) { display: none !important; }
+}
+.herramientas .tarjeta > .btn, .herramientas .tarjeta > button { align-self: flex-start; }
+.herramientas .seccion-titulo { margin: 0; }
+/* En celular la columna del empleado queda fija al desplazar la cuadrícula */
+.tabla-captura td.col-nombre, .tabla-captura thead th:nth-child(2) { position: sticky; left: 0; z-index: 1; }
+.tabla-captura td.col-nombre { background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+.tabla-captura thead th:nth-child(2) { background: var(--header-tabla); }
+.fila-recibo a { color: var(--ink); font-weight: 600; }

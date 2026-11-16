@@ -39,7 +39,7 @@ export function PublicacionesPage() {
       <div className="encabezado-pagina">
         <div>
           <h1>Publicaciones</h1>
-          <p className="tenue">Avisos, documentos, imágenes, videos y trabajos que comparten los usuarios de la plataforma.</p>
+          <p className="tenue">Avisos, documentos, imágenes y videos que comparten los usuarios de la plataforma.</p>
         </div>
         {puede('publicaciones.crear') && <Link className="btn" to="/publicaciones/nueva">+ Nueva publicación</Link>}
       </div>
@@ -57,7 +57,7 @@ export function PublicacionesPage() {
           <button role="tab" aria-selected={!f.tipo} className={!f.tipo ? 'activo' : ''} onClick={() => cambiar({ tipo: undefined })}>Todo</button>
           {(Object.keys(TIPOS) as TipoPublicacion[]).map((t) => (
             <button key={t} role="tab" aria-selected={f.tipo === t} className={f.tipo === t ? 'activo' : ''} onClick={() => cambiar({ tipo: t })}>
-              <span aria-hidden>{TIPOS[t].icono}</span> {t === 'trabajo' ? 'Trabajos' : TIPOS[t].texto}
+              <span aria-hidden>{TIPOS[t].icono}</span> {TIPOS[t].texto}
             </button>
           ))}
         </div>
@@ -134,12 +134,6 @@ function TarjetaPublicacion({ p, onFavorita, onEtiqueta }: { p: Publicacion; onF
               : <span className="mini-video-fondo" aria-hidden>▶</span>}
             <span className="mini-video-play" aria-hidden>▶</span>
             <small>Video en {PROVEEDORES[p.video.proveedor] ?? 'sitio externo'}</small>
-          </div>
-        )}
-        {p.trabajo && (
-          <div className="mini-trabajo">
-            <span className="tarjeta-libro-icono origen-plantilla" aria-hidden>▦</span>
-            <span><strong>{p.trabajo.libro_nombre}</strong><small className="tenue">{p.trabajo.hojas.length} pestaña(s) · versión {p.trabajo.version}</small></span>
           </div>
         )}
       </Link>

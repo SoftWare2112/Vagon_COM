@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -13,13 +12,13 @@ use Throwable;
 /**
  * php artisan reportes:diagnostico
  * Revisa en un minuto lo que suele romper el inicio de sesión y las pruebas:
- * base de datos, migraciones, seeders, usuarios demo, sesión/Sanctum y restos de un "starter kit".
+ * base de datos, migraciones, tablas de nómina, administradores, datos de prueba, sesión/Sanctum y restos de un "starter kit".
  */
 class Diagnostico extends Command
 {
     protected $signature = 'reportes:diagnostico';
 
-    protected $description = 'Revisa configuración, base de datos, usuarios demo y sesión de la plataforma';
+    protected $description = 'Revisa configuración, base de datos, administradores, datos de prueba y sesión de la plataforma';
 
     private int $fallas = 0;
 
@@ -52,32 +51,27 @@ class Diagnostico extends Command
 
             return $this->resumen();
         }
-        foreach (['roles', 'permisos', 'columnas', 'empleados', 'registros', 'cargas', 'sessions'] as $tabla) {
+        foreach (['roles', 'permisos', 'empresas', 'empleados', 'conceptos_nomina', 'tablas_fiscales', 'periodos_nomina', 'nomina_recibos', 'nomina_acumulados', 'empleado_movimientos', 'publicaciones', 'sessions'] as $tabla) {
             $this->check(Schema::hasTable($tabla), "Tabla {$tabla}", 'Ejecuta: php artisan migrate:fresh --seed');
         }
         $this->check(Schema::hasColumn('users', 'rol_id'), 'users.rol_id existe', 'Falta la migración 2026_01_01_000002 (¿se copiaron las migraciones?)');
         if (Schema::hasTable('roles')) {
             $this->check(DB::table('roles')->count() === 3, 'Roles sembrados: '.DB::table('roles')->count().' de 3', 'Ejecuta: php artisan db:seed');
-            $this->check(DB::table('permisos')->count() >= 12, 'Permisos sembrados: '.DB::table('permisos')->count(), 'Ejecuta: php artisan db:seed');
-            $this->check(DB::table('columnas')->count() >= 13, 'Columnas sembradas: '.DB::table('columnas')->count(), 'Ejecuta: php artisan db:seed');
+            $this->check(DB::table('permisos')->count() >= 7, 'Permisos sembrados: '.DB::table('permisos')->count(), 'Ejecuta: php artisan db:seed');
+            $this->check(DB::table('conceptos_nomina')->count() >= 3, 'Conceptos de nómina: '.DB::table('conceptos_nomina')->count(), 'Ejecuta: php artisan migrate');
+            $this->check(DB::table('tablas_fiscales')->count() >= 5, 'Tablas fiscales: '.DB::table('tablas_fiscales')->count(), 'Ejecuta: php artisan migrate');
         }
 
-        $this->seccion('Usuarios demo');
-        foreach (['admin@demo.test', 'supervisor@demo.test', 'lector@demo.test'] as $email) {
-            $u = User::where('email', $email)->first();
-            if (! $u) {
-                $this->check(false, "{$email} no existe", app()->environment('local', 'testing')
-                    ? 'Ejecuta: php artisan db:seed'
-                    : 'El seeder solo crea usuarios demo con APP_ENV=local. Crea uno con: php artisan reportes:usuario '.$email.' --rol=admin_rh');
-
-                continue;
-            }
-            $ok = Hash::check('Demo12345!', $u->password);
-            $this->check($ok, "{$email}: contraseña Demo12345! ".($ok ? 'correcta' : 'NO coincide'),
-                'Restablécela con: php artisan reportes:usuario '.$email.' --password=Demo12345!');
-            $this->check($u->rol_id !== null, "{$email}: rol ".($u->rol?->nombre ?? 'SIN ROL'), 'Asigna rol con: php artisan reportes:usuario '.$email.' --rol=admin_rh');
-            $this->check($u->is_active && ! $u->estaBloqueado(), "{$email}: ".(! $u->is_active ? 'INACTIVO' : ($u->estaBloqueado() ? 'BLOQUEADO hasta '.$u->locked_until : 'activo')),
-                'Desbloquea con: php artisan reportes:usuario '.$email);
+        $this->seccion('Administradores');
+        $admins = User::where('is_active', true)->get()->filter(fn (User $u) => $u->tienePermiso('usuarios.gestionar'));
+        $this->check($admins->isNotEmpty(), 'Administradores activos: '.($admins->pluck('email')->implode(', ') ?: 'ninguno'),
+            'Crea uno con: php artisan reportes:usuario tu@correo.com --rol=admin_rh');
+        $demo = User::where('email', 'like', '%@demo.test')->where('is_active', true)->count();
+        $this->check($demo === 0 || app()->environment('local', 'testing'), "Cuentas @demo.test activas: {$demo}",
+            'Para datos reales bórralas con: php artisan reportes:limpiar-datos-prueba --usuarios-demo');
+        if (Schema::hasTable('empleados') && Schema::hasColumn('empleados', 'rfc')) {
+            $ficticios = DB::table('empleados')->whereNull('rfc')->count();
+            $this->check($ficticios === 0, "Empleados sin RFC (de los Excel de prueba): {$ficticios}", 'Bórralos con: php artisan reportes:limpiar-datos-prueba');
         }
 
         $this->seccion('Sesión y Sanctum (inicio de sesión desde React)');

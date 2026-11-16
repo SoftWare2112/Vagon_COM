@@ -43,3 +43,10 @@ export function mensajeDeError(e: unknown): string {
   if (err.response.status === 429) return 'Demasiados intentos. Espera un momento.';
   return data?.message ?? 'Ocurrió un error inesperado.';
 }
+
+/** v11 — Errores de validación por campo (422): { rfc: 'El RFC no es válido…' }. */
+export function erroresDeCampo(e: unknown): Record<string, string> {
+  const err = e as AxiosError<{ errors?: Record<string, string[]> }>;
+  if (err.response?.status !== 422 || !err.response.data?.errors) return {};
+  return Object.fromEntries(Object.entries(err.response.data.errors).map(([k, v]) => [k, v[0]]));
+}

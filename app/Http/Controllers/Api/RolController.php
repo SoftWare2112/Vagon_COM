@@ -17,7 +17,7 @@ class RolController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'permisos' => array_map(fn (Permiso $p) => ['clave' => $p->value, 'descripcion' => $p->descripcion()], Permiso::cases()),
+            'permisos' => array_map(fn (Permiso $p) => ['clave' => $p->value, 'descripcion' => $p->descripcion()], Permiso::vigentes()),
             'roles' => Rol::with('permisos:id,nombre')->orderBy('id')->get()->map(fn (Rol $r) => [
                 'id' => $r->id, 'nombre' => $r->nombre, 'descripcion' => $r->descripcion,
                 'permisos' => $r->permisos->pluck('nombre'),
@@ -29,7 +29,7 @@ class RolController extends Controller
     {
         $datos = $request->validate([
             'permisos' => ['present', 'array'],
-            'permisos.*' => [Rule::in(array_map(fn (Permiso $p) => $p->value, Permiso::cases()))],
+            'permisos.*' => [Rule::in(array_map(fn (Permiso $p) => $p->value, Permiso::vigentes()))],
         ]);
 
         // Candado: el Administrador nunca puede quitarse la gestión de usuarios (se quedaría sin acceso)

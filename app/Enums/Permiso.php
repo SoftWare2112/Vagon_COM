@@ -29,6 +29,35 @@ enum Permiso: string
     // v9: espacio personal e historial de importaciones
     case HojasVerTodas = 'hojas.ver_todas';
     case InformesLimpiar = 'informes.limpiar';
+    // v10: publicaciones
+    case PublicacionesVer = 'publicaciones.ver';
+    case PublicacionesCrear = 'publicaciones.crear';
+    case PublicacionesModerar = 'publicaciones.moderar';
+    // v11: sistema de nómina
+    case EmpleadosVer = 'empleados.ver';
+    case EmpleadosGestionar = 'empleados.gestionar';
+    case NominaConfigurar = 'nomina.configurar';
+    // v12: nómina por periodo, historial, reportes e indicadores
+    case NominaVer = 'nomina.ver';
+    case NominaCalcular = 'nomina.calcular';
+    case NominaAutorizar = 'nomina.autorizar';
+    case IndicadoresVer = 'indicadores.ver';
+
+    /**
+     * v11: permisos de los módulos retirados (incidencias por Excel, hojas de cálculo, informes de cargas).
+     * El caso se conserva solo porque migraciones antiguas lo mencionan; ya no se asigna ni se muestra.
+     */
+    public const RETIRADOS = [
+        'registros.ver', 'registros.crear', 'registros.editar', 'registros.eliminar', 'cargas.subir', 'cargas.ver', 'exportar',
+        'historico.ver', 'historico.restaurar', 'columnas.gestionar', 'ajustes.gestionar', 'hojas.ver', 'hojas.crear', 'hojas.editar',
+        'plantillas.gestionar', 'hojas.ver_todas', 'informes.limpiar',
+    ];
+
+    /** @return list<self> los permisos que existen hoy en la plataforma */
+    public static function vigentes(): array
+    {
+        return array_values(array_filter(self::cases(), fn (self $p) => ! in_array($p->value, self::RETIRADOS, true)));
+    }
 
     public function descripcion(): string
     {
@@ -51,29 +80,36 @@ enum Permiso: string
             self::PlantillasGestionar => 'Guardar y borrar plantillas de hojas',
             self::HojasVerTodas => 'Ver y controlar los trabajos (libros) de todos los usuarios',
             self::InformesLimpiar => 'Quitar importaciones de otros usuarios y limpiar todo el historial',
+            self::PublicacionesVer => 'Ver las publicaciones dirigidas a su usuario o rol',
+            self::PublicacionesCrear => 'Publicar textos, documentos, imágenes y videos',
+            self::PublicacionesModerar => 'Fijar, marcar como oficial, ocultar o eliminar publicaciones de cualquiera',
+            self::EmpleadosVer => 'Consultar el expediente de los empleados (incluye salario)',
+            self::EmpleadosGestionar => 'Dar de alta, editar y dar de baja empleados; contratos y cambios de salario',
+            self::NominaConfigurar => 'Configurar la nómina: empresa, conceptos, tablas fiscales y periodos',
+            self::NominaVer => 'Consultar nóminas autorizadas, recibos de periodos anteriores y reportes',
+            self::NominaCalcular => 'Capturar incidencias del periodo y calcular la pre-nómina',
+            self::NominaAutorizar => 'Autorizar (cerrar) la nómina, reabrir la última sin timbrar y crear respaldos',
+            self::IndicadoresVer => 'Ver las gráficas de indicadores (faltas, bonos, domingos, altas y bajas)',
         };
     }
 
-    /** Matriz inicial confirmada con RH (editable después desde la web). */
+    /** Matriz inicial (editable después desde Usuarios > Roles y permisos). v12: nómina por periodo. */
     public static function porRol(): array
     {
         return [
-            'admin_rh' => array_map(fn (self $p) => $p->value, self::cases()),
+            'admin_rh' => array_map(fn (self $p) => $p->value, self::vigentes()),
             'supervisor' => [
-                self::RegistrosVer->value,
-                self::RegistrosEditar->value,     // RH: "sí puede editar los registros al igual que el administrador"
-                self::CargasSubir->value,
-                self::CargasVer->value,
-                self::Exportar->value,
-                self::HistoricoVer->value,        // consulta; restaurar se puede habilitar desde la web
-                self::HojasVer->value,
-                self::HojasCrear->value,
-                self::HojasEditar->value,
+                self::EmpleadosVer->value,
+                self::NominaVer->value,
+                self::NominaCalcular->value,
+                self::IndicadoresVer->value,
+                self::PublicacionesVer->value,
+                self::PublicacionesCrear->value,
             ],
             'lector' => [
-                self::RegistrosVer->value,
-                self::Exportar->value,
-                self::HojasVer->value,
+                self::EmpleadosVer->value,
+                self::IndicadoresVer->value,
+                self::PublicacionesVer->value,
             ],
         ];
     }

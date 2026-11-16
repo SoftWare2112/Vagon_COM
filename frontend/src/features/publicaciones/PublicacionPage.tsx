@@ -10,9 +10,8 @@ import { Modal } from '../../components/Modal';
 import { TextoEnriquecido } from '../../components/TextoEnriquecido';
 import type { AdjuntoPublicacion, Publicacion } from '../../types';
 import { iconoArchivo, iniciales, Insignias, PROVEEDORES, tamano, TIPOS } from './piezas';
-import { VistaHojaPublicada } from './VistaHojaPublicada';
 
-/** v10 — Una publicación completa: texto, galería, documentos con vista previa, video y trabajo en solo lectura. */
+/** v10 — Una publicación completa: texto, galería, documentos con vista previa y video. */
 export function PublicacionPage() {
   const id = Number(useParams().id);
   const { puede } = useAuth();
@@ -22,7 +21,6 @@ export function PublicacionPage() {
   const [aviso, setAviso] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
   const [foto, setFoto] = useState<number | null>(null);
   const [previa, setPrevia] = useState<AdjuntoPublicacion | null>(null);
-  const [pestana, setPestana] = useState(0);
   const [verLecturas, setVerLecturas] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
 
@@ -50,12 +48,6 @@ export function PublicacionPage() {
     try { await publicacionesApi.eliminar(p.id); void qc.invalidateQueries({ queryKey: ['publicaciones'] }); nav('/publicaciones'); }
     catch (e) { setAviso({ tipo: 'error', texto: mensajeDeError(e) }); }
   };
-  const copiar = async () => {
-    setTrabajando(true);
-    try { const libro = await publicacionesApi.copiar(p.id); void qc.invalidateQueries({ queryKey: ['libros'] }); nav(`/hojas/${libro.libro.id}`); }
-    catch (e) { setAviso({ tipo: 'error', texto: mensajeDeError(e) }); setTrabajando(false); }
-  };
-
   return (
     <article className="publicacion">
       <Link to="/publicaciones" className="btn-link">← Publicaciones</Link>
@@ -137,30 +129,6 @@ export function PublicacionPage() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {p.trabajo && (
-        <section className="publicacion-trabajo">
-          <div className="seccion-cab">
-            <h2 className="seccion-titulo">▦ {p.trabajo.libro_nombre} <small className="tenue">versión {p.trabajo.version}{p.trabajo.fecha ? ` · ${p.trabajo.fecha}` : ''}</small></h2>
-            <div className="barra-acciones">
-              {p.puede_editar && p.trabajo.libro_id && <Link className="btn btn-sec btn-sm" to={`/hojas/${p.trabajo.libro_id}`}>Abrir mi libro</Link>}
-              {p.puede_editar && p.trabajo.libro_disponible && (
-                <button className="btn btn-sec btn-sm" disabled={trabajando} title="Publica lo que tienes hoy en tu libro"
-                  onClick={() => void accion(() => publicacionesApi.actualizarVersion(p.id), 'Publicación actualizada con la versión de hoy.')}>Actualizar publicación</button>
-              )}
-              {puede('hojas.crear') && (p.permite_copia || p.puede_editar) && (
-                <button className="btn btn-sm" disabled={trabajando} onClick={() => void copiar()}>Hacer una copia en mi espacio</button>
-              )}
-            </div>
-          </div>
-          {(p.trabajo.contenido?.length ?? 0) > 1 && (
-            <div className="segmentado segmentado-sm" role="tablist">
-              {p.trabajo.contenido!.map((h, i) => <button key={i} role="tab" aria-selected={pestana === i} className={pestana === i ? 'activo' : ''} onClick={() => setPestana(i)}>{h.nombre}</button>)}
-            </div>
-          )}
-          {p.trabajo.contenido?.[pestana] && <VistaHojaPublicada key={pestana} hoja={p.trabajo.contenido[pestana]} />}
         </section>
       )}
 

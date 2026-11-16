@@ -6,17 +6,17 @@ import { useAuth } from '../auth/AuthContext';
 import { useOnline } from '../hooks/useOnline';
 import type { Permiso } from '../types';
 
-// v9: cada opción se ve si el usuario tiene AL MENOS uno de sus permisos
+// Cada opción se ve si el usuario tiene AL MENOS uno de sus permisos (vacío = todos)
 const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] = [
-  { a: '/', texto: 'Inicio', icono: '⌂', permisos: ['registros.ver', 'hojas.ver'] },
-  { a: '/incidencias', texto: 'Incidencias', icono: '📋', permisos: ['registros.ver'] },
-  { a: '/hojas', texto: 'Mis hojas', icono: '▦', permisos: ['hojas.ver'] },
+  { a: '/', texto: 'Inicio', icono: '⌂', permisos: [] },
+  { a: '/empleados', texto: 'Empleados', icono: '👥', permisos: ['empleados.ver'] },
+  { a: '/nomina', texto: 'Nómina del periodo', icono: '🧮', permisos: ['nomina.ver', 'nomina.calcular'] },
+  { a: '/nomina/historial', texto: 'Historial y recibos', icono: '🗂', permisos: ['nomina.ver'] },
+  { a: '/nomina/reportes', texto: 'Reportes', icono: '📑', permisos: ['nomina.ver'] },
+  { a: '/indicadores', texto: 'Indicadores', icono: '📊', permisos: ['indicadores.ver'] },
+  { a: '/nomina/configuracion', texto: 'Configuración de nómina', icono: '⚙', permisos: ['empleados.ver'] },
   { a: '/publicaciones', texto: 'Publicaciones', icono: '📣', permisos: ['publicaciones.ver'] },
-  { a: '/graficas', texto: 'Gráficas', icono: '📊', permisos: ['registros.ver'] },
-  { a: '/informes', texto: 'Informes', icono: '🗎', permisos: ['cargas.ver', 'hojas.crear', 'exportar'] },
-  { a: '/usuarios', texto: 'Usuarios', icono: '👥', permisos: ['usuarios.gestionar'] },
-  { a: '/historico', texto: 'Histórico', icono: '🕘', permisos: ['historico.ver'] },
-  { a: '/ajustes', texto: 'Ajustes', icono: '⚙', permisos: ['ajustes.gestionar'] },
+  { a: '/usuarios', texto: 'Usuarios y roles', icono: '🔐', permisos: ['usuarios.gestionar'] },
 ];
 
 const NOMBRE_ROL = { admin_rh: 'Administrador (RH)', supervisor: 'Supervisor', lector: 'Lector' } as const;
@@ -38,10 +38,10 @@ export function AppLayout() {
   return (
     <div className={`app ${abierto ? 'menu-abierto' : ''}`}>
       <aside className="sidebar" aria-label="Menú principal">
-        <div className="marca">Reportes<span>Personal</span></div>
+        <div className="marca">Vagón COM<span>Nómina</span></div>
         <nav>
-          {MENU.filter((m) => m.permisos.some(puede)).map((m) => (
-            <NavLink key={m.a} to={m.a} end={m.a === '/'} onClick={() => setAbierto(false)}>
+          {MENU.filter((m) => m.permisos.length === 0 || m.permisos.some(puede)).map((m) => (
+            <NavLink key={m.a} to={m.a} end={m.a === '/' || m.a === '/nomina'} onClick={() => setAbierto(false)}>
               <span className="icono" aria-hidden>{m.icono}</span>{m.texto}
               {m.a === '/publicaciones' && sinLeer > 0 && <span className="insignia-menu" aria-label={`${sinLeer} nuevas`}>{sinLeer > 99 ? '99+' : sinLeer}</span>}
             </NavLink>

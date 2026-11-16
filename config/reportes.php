@@ -10,10 +10,15 @@
 
 return [
 
-    // Número de empleado: MSI000001, MSI000002, ...  (prefijo + 6 dígitos, confirmado por RH)
+    // v12: respaldo de la base de datos antes de autorizar una nómina (ruta de mysqldump; en Windows la de XAMPP/MySQL)
+    'respaldo' => [
+        'mysqldump' => env('MYSQLDUMP_PATH', 'mysqldump'),
+    ],
+
+    // Número de empleado: VC0001, VC0002, ...  (prefijo + 4 dígitos, v11)
     'numero_empleado' => [
-        'prefijo' => env('NUM_EMPLEADO_PREFIJO', 'MSI'),
-        'digitos' => (int) env('NUM_EMPLEADO_DIGITOS', 6),
+        'prefijo' => env('NUM_EMPLEADO_PREFIJO', 'VC'),
+        'digitos' => (int) env('NUM_EMPLEADO_DIGITOS', 4),
     ],
 
     // Seguridad de acceso
@@ -40,5 +45,5 @@ return [
     ],
 
     // Puestos sugeridos para el catálogo (el Excel trae "Puesto" en la 3a columna; el catálogo crece solo)
-    'puestos_base' => ['Asesor', 'Supervisor', 'MSI'],
+    'puestos_base' => ['Generalista', 'Supervisor de mesa de servicio'],
 ];
