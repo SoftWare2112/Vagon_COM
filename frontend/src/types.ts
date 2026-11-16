@@ -4,7 +4,8 @@ export type Permiso =
   | 'historico.ver' | 'historico.restaurar' | 'columnas.gestionar'
   | 'usuarios.gestionar' | 'ajustes.gestionar'
   | 'hojas.ver' | 'hojas.crear' | 'hojas.editar' | 'plantillas.gestionar'
-  | 'hojas.ver_todas' | 'informes.limpiar';
+  | 'hojas.ver_todas' | 'informes.limpiar'
+  | 'publicaciones.ver' | 'publicaciones.crear' | 'publicaciones.moderar';
 
 export interface Usuario {
   id: number;
@@ -215,7 +216,7 @@ export interface ImagenHoja { id: number; f: number; c: number; x: number; y: nu
 
 /** v9: libro = trabajo personal con una o más pestañas. */
 export interface LibroResumen {
-  id: number; nombre: string; origen: 'blanco' | 'plantilla' | 'importado' | 'personal'; es_personal: boolean;
+  id: number; nombre: string; origen: 'blanco' | 'plantilla' | 'importado' | 'personal' | 'copia'; es_personal: boolean;
   hojas: number; user_id: number; autor: string | null; actualizado: string | null; actualizado_iso: string | null;
 }
 export interface LibroDetalle {
@@ -233,4 +234,48 @@ export interface HojaGuardado {
   celdas: import('./features/hojas/motor/tipos').Celda[];
   conflictos: import('./features/hojas/motor/tipos').Celda[];
   estilos: Record<string, import('./features/hojas/motor/tipos').Estilo>;
+}
+
+// ───────────────────────── v10: Publicaciones ─────────────────────────
+export type TipoPublicacion = 'texto' | 'documentos' | 'imagenes' | 'video' | 'trabajo';
+export type EstadoPublicacion = 'borrador' | 'publicada' | 'archivada';
+
+export interface AdjuntoPublicacion {
+  id: number; nombre: string; mime: string; tamano: number; ancho: number | null; alto: number | null;
+  es_imagen: boolean; url: string; miniatura: string;
+}
+
+/** Hoja congelada de un trabajo publicado (mismos datos que HojaDatos, sin edición). */
+export interface HojaPublicada {
+  nombre: string;
+  columnas: { id: number; ancho: number }[];
+  filas: { id: number; alto: number }[];
+  estilos: Record<number, import('./features/hojas/motor/tipos').Estilo>;
+  celdas: import('./features/hojas/motor/tipos').Celda[];
+  combinadas: Combinada[];
+  imagenes: ImagenHoja[];
+}
+
+export interface Publicacion {
+  id: number; tipo: TipoPublicacion; titulo: string; cuerpo: string; categoria: string | null; etiquetas: string[];
+  estado: EstadoPublicacion; fijada: boolean; oficial: boolean; permite_descarga: boolean; permite_copia: boolean;
+  video: { url: string; proveedor: string; id: string | null; incrustar: string | null } | null;
+  autor: { id: number; nombre: string; rol: string | null };
+  publicada: string | null; publicada_iso: string | null; caduca: string | null;
+  adjuntos: AdjuntoPublicacion[];
+  trabajo: { libro_nombre: string; version: number; fecha: string | null; hojas: string[]; libro_id: number | null; libro_disponible: boolean | null; contenido?: HojaPublicada[] } | null;
+  leida: boolean; favorita: boolean; puede_editar: boolean;
+  audiencia: 'todos' | 'roles' | 'usuarios'; audiencia_ids?: (string | number)[]; lecturas?: number;
+}
+
+export interface FiltrosPublicaciones {
+  q?: string; tipo?: TipoPublicacion | ''; categoria?: string; etiqueta?: string;
+  vista?: 'todas' | 'mias' | 'favoritas' | 'borradores' | 'archivadas'; page?: number;
+}
+
+export interface DatosPublicacion {
+  tipo?: TipoPublicacion; titulo?: string; cuerpo?: string; categoria?: string; etiquetas?: string[];
+  audiencia?: Publicacion['audiencia']; audiencia_ids?: (string | number)[]; estado?: 'borrador' | 'publicada';
+  fijada?: boolean; oficial?: boolean; permite_descarga?: boolean; permite_copia?: boolean;
+  video_url?: string; libro_id?: number | null; caduca_at?: string | null;
 }

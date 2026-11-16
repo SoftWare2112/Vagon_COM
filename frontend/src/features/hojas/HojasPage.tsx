@@ -14,6 +14,7 @@ const ORIGEN: Record<LibroResumen['origen'], { texto: string; icono: string }> =
   importado: { texto: 'Excel importado', icono: '⇪' },
   plantilla: { texto: 'Desde plantilla', icono: '▤' },
   blanco: { texto: 'En blanco', icono: '▦' },
+  copia: { texto: 'Copia de una publicación', icono: '⧉' },
 };
 
 /** v9 — Mis hojas: los libros del usuario (privados). El Administrador puede ver los de todos. */

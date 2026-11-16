@@ -1,6 +1,6 @@
 import { http, csrf } from './http';
 import type {
-  Carga, Columna, ColumnaCatalogo, Estadisticas, FiltrosHistorial, HojaDatos, HojaGuardado, HojaPlantillaResumen, LibroDetalle, LibroResumen, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
+  Carga, Columna, ColumnaCatalogo, DatosPublicacion, Estadisticas, FiltrosHistorial, FiltrosPublicaciones, Publicacion, HojaDatos, HojaGuardado, HojaPlantillaResumen, LibroDetalle, LibroResumen, ReporteCambioTipo, ReporteRh, Fila, Filtros, Paginado, Permiso, Previsualizacion, Resumen,
   RolesRespuesta, TablaRespuesta, TipoColumna, Usuario,
 } from '../types';
 
@@ -194,4 +194,53 @@ export const rolesApi = {
   listar: async () => (await http.get<RolesRespuesta>('/api/roles')).data,
   guardarPermisos: async (rolId: number, permisos: Permiso[]) =>
     (await http.put<RolesRespuesta>(`/api/roles/${rolId}/permisos`, { permisos })).data,
+};
+
+/** Archivo protegido (se pide con la sesión) como Blob, para mostrarlo con URL.createObjectURL. */
+export const archivoBlob = async (url: string) => (await http.get<Blob>(url, { responseType: 'blob' })).data;
+
+/** Descarga un archivo protegido con su nombre. */
+export async function descargarArchivo(url: string, nombre: string) {
+  const blob = await archivoBlob(url);
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u; a.download = nombre; a.click();
+  setTimeout(() => URL.revokeObjectURL(u), 1000);
+}
+
+/** v10: publicaciones (texto, documentos, imágenes, enlaces a video y trabajos de la plataforma). */
+export const publicacionesApi = {
+  listar: async (f: FiltrosPublicaciones = {}) => (await http.get<Paginado<Publicacion>>('/api/publicaciones', { params: limpiar(f) })).data,
+  sinLeer: async () => (await http.get<{ total: number }>('/api/publicaciones/sin-leer')).data.total,
+  categorias: async () => (await http.get<{ categoria: string; total: number }[]>('/api/publicaciones/categorias')).data,
+  audiencias: async () => (await http.get<{ roles: { nombre: string; descripcion: string }[]; usuarios: { id: number; name: string }[] }>('/api/publicaciones/audiencias')).data,
+  obtener: async (id: number) => (await http.get<Publicacion>(`/api/publicaciones/${id}`)).data,
+  /** Nueva publicación con sus archivos (multipart). */
+  crear: async (d: DatosPublicacion, archivos: File[], onProgreso?: (pct: number) => void) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(d)) {
+      if (v === undefined || v === null || v === '') continue;
+      if (Array.isArray(v)) v.forEach((x) => fd.append(`${k}[]`, String(x)));
+      else fd.append(k, typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
+    }
+    archivos.forEach((a) => fd.append('adjuntos[]', a));
+    return (await http.post<Publicacion>('/api/publicaciones', fd, {
+      timeout: 300_000, onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
+    })).data;
+  },
+  actualizar: async (id: number, d: DatosPublicacion) => (await http.patch<Publicacion>(`/api/publicaciones/${id}`, d)).data,
+  eliminar: (id: number) => http.delete(`/api/publicaciones/${id}`),
+  publicar: async (id: number) => (await http.post<Publicacion>(`/api/publicaciones/${id}/publicar`)).data,
+  archivar: async (id: number) => (await http.post<Publicacion>(`/api/publicaciones/${id}/archivar`)).data,
+  moderar: async (id: number, d: { fijada?: boolean; oficial?: boolean }) => (await http.post<Publicacion>(`/api/publicaciones/${id}/moderar`, d)).data,
+  favorita: async (id: number) => (await http.post<{ favorita: boolean }>(`/api/publicaciones/${id}/favorita`)).data.favorita,
+  agregarAdjuntos: async (id: number, archivos: File[]) => {
+    const fd = new FormData();
+    archivos.forEach((a) => fd.append('adjuntos[]', a));
+    return (await http.post<Publicacion>(`/api/publicaciones/${id}/adjuntos`, fd, { timeout: 300_000 })).data;
+  },
+  quitarAdjunto: async (id: number, adjunto: number) => (await http.delete<Publicacion>(`/api/publicaciones/${id}/adjuntos/${adjunto}`)).data,
+  actualizarVersion: async (id: number) => (await http.post<Publicacion>(`/api/publicaciones/${id}/version`)).data,
+  copiar: async (id: number) => (await http.post<LibroDetalle>(`/api/publicaciones/${id}/copiar`)).data,
+  lecturas: async (id: number) => (await http.get<{ id: number; nombre: string; leida: string }[]>(`/api/publicaciones/${id}/lecturas`)).data,
 };

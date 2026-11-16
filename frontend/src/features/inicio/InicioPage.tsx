@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { cargasApi, librosApi } from '../../api/endpoints';
+import { cargasApi, librosApi, publicacionesApi } from '../../api/endpoints';
 import { useAuth } from '../../auth/AuthContext';
 import { EditorLibro } from '../hojas/EditorLibro';
 import { DashboardPage } from '../registros/DashboardPage';
@@ -71,8 +71,24 @@ function Recientes() {
     enabled: puede('cargas.ver') || puede('hojas.crear'),
   });
 
+  const publicaciones = useQuery({ queryKey: ['publicaciones', { vista: 'todas', page: 1 }], queryFn: () => publicacionesApi.listar({ vista: 'todas', page: 1 }), enabled: puede('publicaciones.ver') });
+
   return (
     <div className="recientes">
+      {publicaciones.data && (
+        <section>
+          <div className="seccion-cab"><h2>Publicaciones</h2><Link to="/publicaciones" className="btn-link">Ver todas</Link></div>
+          {publicaciones.data.data.length === 0 && <p className="tenue">Sin publicaciones todavía.</p>}
+          <ul className="lista-simple">
+            {publicaciones.data.data.slice(0, 5).map((p) => (
+              <li key={p.id}>
+                <Link to={`/publicaciones/${p.id}`}>{!p.leida && <span className="punto-nuevo" aria-label="Nueva" />}<strong>{p.titulo}</strong></Link>
+                <small className="tenue">{p.autor.nombre}{p.publicada ? ` · ${p.publicada}` : ''}</small>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section>
         <div className="seccion-cab"><h2>Libros recientes</h2><Link to="/hojas" className="btn-link">Ver todos</Link></div>
         {libros.data?.length === 0 && <p className="tenue">Aún no tienes libros.</p>}

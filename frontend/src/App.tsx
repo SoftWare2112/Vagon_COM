@@ -15,6 +15,9 @@ import { EstadisticasPage } from './features/estadisticas/EstadisticasPage';
 import { HojasPage } from './features/hojas/HojasPage';
 import { LibroPage } from './features/hojas/EditorLibro';
 import { InicioPage } from './features/inicio/InicioPage';
+import { PublicacionesPage } from './features/publicaciones/PublicacionesPage';
+import { PublicacionPage } from './features/publicaciones/PublicacionPage';
+import { EditorPublicacion } from './features/publicaciones/EditorPublicacion';
 
 export default function App() {
   return (
@@ -36,6 +39,15 @@ export default function App() {
             <Route element={<Protegida permiso="hojas.ver" />}>
               <Route path="hojas" element={<HojasPage />} />
               <Route path="hojas/:id" element={<LibroPage />} />
+            </Route>
+            {/* v10: Publicaciones */}
+            <Route element={<Protegida permiso="publicaciones.ver" />}>
+              <Route path="publicaciones" element={<PublicacionesPage />} />
+              <Route path="publicaciones/:id" element={<PublicacionPage />} />
+              <Route path="publicaciones/:id/editar" element={<EditorPublicacion />} />
+            </Route>
+            <Route element={<Protegida permiso="publicaciones.crear" />}>
+              <Route path="publicaciones/nueva" element={<EditorPublicacion />} />
             </Route>
             <Route element={<Protegida alguno={['cargas.ver', 'hojas.crear', 'exportar']} />}><Route path="informes" element={<InformesPage />} /></Route>
             <Route element={<Protegida permiso="usuarios.gestionar" />}><Route path="usuarios" element={<UsuariosPage />} /></Route>

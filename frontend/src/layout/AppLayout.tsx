@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { publicacionesApi } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { useOnline } from '../hooks/useOnline';
 import type { Permiso } from '../types';
@@ -9,6 +11,7 @@ const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] =
   { a: '/', texto: 'Inicio', icono: '⌂', permisos: ['registros.ver', 'hojas.ver'] },
   { a: '/incidencias', texto: 'Incidencias', icono: '📋', permisos: ['registros.ver'] },
   { a: '/hojas', texto: 'Mis hojas', icono: '▦', permisos: ['hojas.ver'] },
+  { a: '/publicaciones', texto: 'Publicaciones', icono: '📣', permisos: ['publicaciones.ver'] },
   { a: '/graficas', texto: 'Gráficas', icono: '📊', permisos: ['registros.ver'] },
   { a: '/informes', texto: 'Informes', icono: '🗎', permisos: ['cargas.ver', 'hojas.crear', 'exportar'] },
   { a: '/usuarios', texto: 'Usuarios', icono: '👥', permisos: ['usuarios.gestionar'] },
@@ -21,6 +24,8 @@ const NOMBRE_ROL = { admin_rh: 'Administrador (RH)', supervisor: 'Supervisor', l
 /** Sidebar fijo en laptop; cajón (drawer) con botón ☰ en celular. */
 export function AppLayout() {
   const { usuario, puede, logout } = useAuth();
+  // v10: cuántas publicaciones nuevas hay (se revisa cada minuto)
+  const { data: sinLeer = 0 } = useQuery({ queryKey: ['publicaciones-sin-leer'], queryFn: publicacionesApi.sinLeer, enabled: puede('publicaciones.ver'), refetchInterval: 60_000 });
   const [abierto, setAbierto] = useState(false);
   const online = useOnline();
   const nav = useNavigate();
@@ -38,6 +43,7 @@ export function AppLayout() {
           {MENU.filter((m) => m.permisos.some(puede)).map((m) => (
             <NavLink key={m.a} to={m.a} end={m.a === '/'} onClick={() => setAbierto(false)}>
               <span className="icono" aria-hidden>{m.icono}</span>{m.texto}
+              {m.a === '/publicaciones' && sinLeer > 0 && <span className="insignia-menu" aria-label={`${sinLeer} nuevas`}>{sinLeer > 99 ? '99+' : sinLeer}</span>}
             </NavLink>
           ))}
         </nav>
