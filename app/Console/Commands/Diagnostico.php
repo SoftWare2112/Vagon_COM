@@ -51,7 +51,7 @@ class Diagnostico extends Command
 
             return $this->resumen();
         }
-        foreach (['roles', 'permisos', 'empresas', 'empleados', 'conceptos_nomina', 'tablas_fiscales', 'periodos_nomina', 'nomina_recibos', 'nomina_acumulados', 'empleado_movimientos', 'publicaciones', 'sessions'] as $tabla) {
+        foreach (['roles', 'permisos', 'empresas', 'empleados', 'conceptos_nomina', 'tablas_fiscales', 'periodos_nomina', 'nomina_recibos', 'nomina_acumulados', 'empleado_movimientos', 'vacaciones', 'ajustes_anuales', 'recibo_envios', 'publicaciones', 'sessions'] as $tabla) {
             $this->check(Schema::hasTable($tabla), "Tabla {$tabla}", 'Ejecuta: php artisan migrate:fresh --seed');
         }
         $this->check(Schema::hasColumn('users', 'rol_id'), 'users.rol_id existe', 'Falta la migración 2026_01_01_000002 (¿se copiaron las migraciones?)');
@@ -72,6 +72,15 @@ class Diagnostico extends Command
         if (Schema::hasTable('empleados') && Schema::hasColumn('empleados', 'rfc')) {
             $ficticios = DB::table('empleados')->whereNull('rfc')->count();
             $this->check($ficticios === 0, "Empleados sin RFC (de los Excel de prueba): {$ficticios}", 'Bórralos con: php artisan reportes:limpiar-datos-prueba');
+        }
+
+        $this->seccion('Recibos en PDF y correo (v13)');
+        $this->check(class_exists(\Barryvdh\DomPDF\Facade\Pdf::class), 'Librería de PDF (dompdf)', 'Ejecuta: composer require barryvdh/laravel-dompdf');
+        $mailer = (string) config('mail.default');
+        $this->check(! in_array($mailer, ['log', 'array'], true), "MAIL_MAILER = {$mailer}".(in_array($mailer, ['log', 'array'], true) ? ' (los correos solo se escriben en storage/logs, no se envían)' : ''),
+            'Para enviar recibos configura en .env: MAIL_MAILER=smtp, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS');
+        if (Schema::hasTable('tablas_fiscales')) {
+            $this->check(DB::table('tablas_fiscales')->where('tipo', 'isr_anual')->exists(), 'Tarifa anual de ISR (cálculo anual)', 'Ejecuta: php artisan migrate');
         }
 
         $this->seccion('Sesión y Sanctum (inicio de sesión desde React)');

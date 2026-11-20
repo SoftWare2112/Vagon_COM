@@ -19,7 +19,7 @@ class ReportesNomina
     {
         $recibos = NominaRecibo::with('lineas')->where('periodo_id', $p->id)->orderBy('nombre')->get();
         $columnas = $recibos->flatMap->lineas->map(fn ($l) => ['clave' => $l->clave, 'nombre' => $l->nombre, 'tipo' => $l->tipo])
-            ->unique('clave')->sortBy(fn ($c) => ($c['tipo'] === 'percepcion' ? '0' : '1').$c['clave'])->values();
+            ->unique('clave')->sortBy(fn ($c) => self::orden($c['tipo']).$c['clave'])->values();
 
         $filas = $recibos->map(function (NominaRecibo $r) use ($columnas) {
             $importes = $r->lineas->groupBy('clave')->map(fn ($ls) => round($ls->sum('importe'), 2));
@@ -38,6 +38,12 @@ class ReportesNomina
         ];
     }
 
+    /** Percepciones, deducciones y al final otros pagos (v13). */
+    private static function orden(string $tipo): string
+    {
+        return ['percepcion' => '0', 'deduccion' => '1', 'otro_pago' => '2'][$tipo] ?? '3';
+    }
+
     public function acumulados(Empresa $empresa, int $ejercicio, string $tipo, ?int $empleadoId = null): array
     {
         $periodos = PeriodoNomina::where(['empresa_id' => $empresa->id, 'tipo' => $tipo, 'ejercicio' => $ejercicio, 'estado' => 'autorizado'])
@@ -54,7 +60,7 @@ class ReportesNomina
             return ['clave' => $g->first()->clave, 'nombre' => $g->first()->nombre, 'tipo' => $g->first()->tipo,
                 'periodos' => $periodos->mapWithKeys(fn ($p) => [$p->numero => round((float) ($porPeriodo->get($p->id)?->importe ?? 0), 2)]),
                 'total' => round((float) $g->sum('importe'), 2)];
-        })->sortBy(fn ($f) => ($f['tipo'] === 'percepcion' ? '0' : '1').$f['clave'])->values();
+        })->sortBy(fn ($f) => self::orden($f['tipo']).$f['clave'])->values();
 
         return ['ejercicio' => $ejercicio, 'tipo' => $tipo, 'empleado_id' => $empleadoId,
             'periodos' => $periodos->map(fn ($p) => ['numero' => $p->numero, 'inicio' => $p->inicio->format('Y-m-d'), 'fin' => $p->fin->format('Y-m-d')])->values(),

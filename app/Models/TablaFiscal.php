@@ -13,6 +13,7 @@ class TablaFiscal extends Model
     public const TIPOS = [
         'uma' => 'UMA (Unidad de Medida y Actualización)', 'salario_minimo' => 'Salario mínimo', 'subsidio' => 'Subsidio para el empleo',
         'imss_obrero' => 'Cuotas obreras del IMSS', 'isr_semanal' => 'Tarifa ISR semanal', 'isr_quincenal' => 'Tarifa ISR quincenal', 'isr_mensual' => 'Tarifa ISR mensual',
+        'isr_anual' => 'Tarifa ISR anual (cálculo anual, art. 152)',
     ];
 
     protected $table = 'tablas_fiscales';

@@ -116,7 +116,7 @@ return new class extends Migration
                 $t->string('nombre', 80);
                 $t->string('tipo', 12);             // percepcion | deduccion
                 $t->string('clave_sat', 5)->nullable();
-                $t->string('metodo', 15);           // sueldo | fijo | por_evento | captura | isr | imss
+                $t->string('metodo', 20);           // sueldo | fijo | por_evento | captura | isr | imss | prima_vacacional | aguinaldo (v13)
                 $t->decimal('monto', 12, 2)->default(0);
                 $t->decimal('porcentaje', 7, 4)->default(0);
                 $t->json('regla')->nullable();      // condiciones: solo_fin_de_mes, antiguedad_meses_min, frecuencia, sin_faltas, sin_retardos

@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import type { Empleado, TipoContrato } from '../../types';
 import { CONTRATOS, DIAS_SEMANA, dinero, fecha, hoyISO, numero, PERIODICIDADES } from '../../utils/formato';
 import { Simulador } from './Simulador';
+import { VacacionesCard } from './VacacionesCard';
 
 type Dialogo = 'salario' | 'contrato' | 'baja' | null;
 
@@ -88,7 +89,7 @@ export function EmpleadoPage() {
         <div className="tarjeta">
           <h2 className="seccion-titulo">Prestaciones</h2>
           <dl className="datos">
-            <Dato t="Vacaciones" v={`${c.dias_vacaciones} días ${c.antiguedad_anios < 1 ? `(a partir del ${fecha(c.vacaciones_desde)})` : 'en este año de servicio'}`} />
+            <Dato t="Vacaciones" v={`${c.dias_vacaciones} días ${c.antiguedad_anios < 1 ? `(a partir del ${fecha(c.vacaciones_desde)})` : 'por año de servicio (saldo abajo)'}`} />
             <Dato t="Prima vacacional" v={`25 % de los días de vacaciones (${dinero((c.salario_diario ?? 0) * c.dias_vacaciones * 0.25)})`} />
             <Dato t="Aguinaldo" v={`${numero(c.aguinaldo_dias, 2)} días proporcionales este año (${dinero((c.salario_diario ?? 0) * c.aguinaldo_dias)})`} />
             <Dato t="Jornada" v={`${e.jornada_horas ?? '—'} h · descansa ${e.dias_descanso?.length ? e.dias_descanso.map((d) => DIAS_SEMANA[d]).join(', ') : '(sin definir)'}`} />
@@ -97,6 +98,8 @@ export function EmpleadoPage() {
       </div>
 
       <Simulador empleado={e} />
+
+      <VacacionesCard empleado={e} />
 
       <div className="expediente-rejilla">
         <div className="tarjeta">

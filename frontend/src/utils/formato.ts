@@ -19,4 +19,6 @@ export function hoyISO(): string {
 
 export const CONTRATOS = { capacitacion: 'Capacitación', prueba: 'Periodo de prueba', temporal: 'Temporal', indeterminado: 'Indeterminado' } as const;
 export const PERIODICIDADES = { semanal: 'Semanal', quincenal: 'Quincenal', mensual: 'Mensual' } as const;
+/** v13: los calendarios de nómina incluyen las nóminas especiales (aguinaldo). */
+export const TIPOS_PERIODO = { ...PERIODICIDADES, especial: 'Especiales' } as const;
 export const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

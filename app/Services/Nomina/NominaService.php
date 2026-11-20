@@ -15,6 +15,9 @@ use App\Models\User;
 use App\Support\Nomina\CalculadoraNomina;
 use App\Support\Nomina\DiasLaborados;
 use App\Support\Nomina\Huella;
+use App\Support\Nomina\PagoExtraordinario;
+use App\Models\Vacacion;
+use App\Models\NominaAcumulado as Acumulado;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -36,6 +39,15 @@ class NominaService
     /** Empleados que entran en la nómina del periodo: su periodicidad, con RFC, contratados al menos un día del periodo. */
     public function empleados(PeriodoNomina $p): Collection
     {
+        if ($p->especial()) {
+            // v13: aguinaldo → todos los empleados con RFC que siguen contratados el día de pago (sin importar su periodicidad).
+            // A quien se fue antes, el aguinaldo proporcional se le paga en su finiquito.
+            return Empleado::with('puesto')->where('empresa_id', $p->empresa_id)->whereNotNull('rfc')
+                ->whereDate('fecha_ingreso', '<=', $p->fecha_pago)
+                ->where(fn ($q) => $q->whereNull('fecha_baja')->orWhereDate('fecha_baja', '>=', $p->fecha_pago))
+                ->orderBy('apellido_paterno')->orderBy('apellido_materno')->orderBy('nombres')->get();
+        }
+
         return Empleado::with('puesto')
             ->where('empresa_id', $p->empresa_id)->where('periodicidad', $p->tipo)->whereNotNull('rfc')
             ->whereDate('fecha_ingreso', '<=', $p->fin)
@@ -52,15 +64,17 @@ class NominaService
             ? Empleado::with('puesto')->whereIn('id', $recibos->keys())->orderBy('apellido_paterno')->orderBy('nombres')->get()
             : $this->empleados($p);
         $empresa = Empresa::findOrFail($p->empresa_id);
+        $vacaciones = $p->especial() ? collect() : $this->vacacionesDelPeriodo($p);
 
-        $filas = $empleados->map(function (Empleado $e) use ($p, $incidencias, $recibos) {
+        $filas = $empleados->map(function (Empleado $e) use ($p, $incidencias, $recibos, $vacaciones) {
             $i = $incidencias->get($e->id);
             $r = $recibos->get($e->id);
 
             return [
                 'empleado_id' => $e->id, 'numero_empleado' => $e->numero_empleado, 'nombre' => $e->nombre_completo, 'puesto' => $e->puesto?->nombre,
-                'dias_fuera' => DiasLaborados::fuera($p->inicio->format('Y-m-d'), $p->fin->format('Y-m-d'), $p->dias,
+                'dias_fuera' => $p->especial() ? 0 : DiasLaborados::fuera($p->inicio->format('Y-m-d'), $p->fin->format('Y-m-d'), $p->dias,
                     $e->fecha_ingreso->format('Y-m-d'), $e->fecha_baja?->format('Y-m-d')),
+                'vacaciones' => (int) $vacaciones->get($e->id, 0),
                 'faltas' => $i?->faltas ?? 0, 'retardos' => $i?->retardos ?? 0, 'domingos' => $i?->domingos ?? 0,
                 'capturados' => (object) ($i?->capturados ?? []), 'notas' => $i?->notas,
                 'recibo' => $r ? $this->resumen($r) : null,
@@ -68,12 +82,16 @@ class NominaService
         })->values();
 
         $recibosValidos = $recibos->filter(fn ($r) => $filas->contains('empleado_id', $r->empleado_id));
+        // Columnas capturables; las del ajuste anual solo aparecen cuando alguien tiene un importe
+        $usadas = $filas->flatMap(fn ($f) => array_keys((array) $f['capturados']))->unique()->all();
+        $columnas = $p->especial() ? collect() : collect($this->config->conceptos($empresa))->where('metodo', 'captura')->where('activo', true)
+            ->filter(fn ($c) => empty($c['regla']['solo_ajuste']) || in_array($c['clave'], $usadas, true));
 
         return [
             'periodo' => $this->periodoJson($p),
             'timbrado_activo' => (bool) $empresa->timbrado_activo,
-            'columnas' => collect($this->config->conceptos($empresa))->where('metodo', 'captura')->where('activo', true)
-                ->map(fn ($c) => ['clave' => $c['clave'], 'nombre' => $c['nombre'], 'tipo' => $c['tipo']])->values(),
+            'columnas' => $columnas->map(fn ($c) => ['clave' => $c['clave'], 'nombre' => $c['nombre'], 'tipo' => $c['tipo'],
+                'solo_ajuste' => ! empty($c['regla']['solo_ajuste'])])->values(),
             'filas' => $filas,
             'totales' => $p->estado === 'abierto' && ! $p->calculado_at ? null : [
                 'empleados' => $recibosValidos->count(),
@@ -88,6 +106,9 @@ class NominaService
     public function guardarIncidencias(PeriodoNomina $p, array $filas, User $u): void
     {
         $this->exigirEditable($p);
+        if ($p->especial()) {
+            throw new ReglaNegocioException('La nómina de aguinaldo no lleva incidencias: se calcula con los días trabajados en el año.', 422, ['codigo' => 'SIN_INCIDENCIAS']);
+        }
         $permitidos = $this->empleados($p)->pluck('id')->all();
         $capturables = collect($this->config->conceptos(Empresa::findOrFail($p->empresa_id)))->where('metodo', 'captura')->pluck('clave')->all();
 
@@ -121,19 +142,39 @@ class NominaService
         $incidencias = NominaIncidencia::where('periodo_id', $p->id)->get()->keyBy('empleado_id');
         $empleados = $this->empleados($p);
         $avisos = [];
+        $vacaciones = $p->especial() ? collect() : $this->vacacionesDelPeriodo($p);
+        $porClave = collect($conceptos)->keyBy('clave');
+        // Exención anual ya usada (aguinaldo 30 UMA, prima vacacional 15 UMA) según los acumulados autorizados del año
+        $exentos = Acumulado::whereIn('empleado_id', $empleados->pluck('id'))->where('ejercicio', $p->ejercicio)->whereIn('clave', ['P006', 'P007'])
+            ->get()->groupBy('empleado_id')->map(fn ($g) => $g->pluck('exento', 'clave')->all());
 
-        DB::transaction(function () use ($p, $empresa, $inicio, $fin, $conceptos, $parametros, $incidencias, $empleados, &$avisos, $u) {
+        DB::transaction(function () use ($p, $empresa, $inicio, $fin, $conceptos, $parametros, $incidencias, $empleados, &$avisos, $u, $vacaciones, $porClave, $exentos) {
             // Quien ya no entra en este periodo (p. ej. se corrigió su fecha de baja) pierde su borrador
             NominaRecibo::where('periodo_id', $p->id)->whereNotIn('empleado_id', $empleados->pluck('id'))->get()->each->delete();
 
             foreach ($empleados as $e) {
-                $salario = $e->salarioEn($fin);
+                $salario = $e->salarioEn($p->especial() ? $p->fecha_pago->format('Y-m-d') : $fin);
                 if (! $salario) {
                     $avisos[] = "{$e->nombre_completo}: no tiene salario capturado; no se calculó.";
 
                     continue;
                 }
                 $i = $incidencias->get($e->id);
+                if ($p->especial()) {
+                    $calculo = PagoExtraordinario::aguinaldo([
+                        'salario_mensual' => $salario, 'divisor' => (float) $empresa->divisor_salario_diario, 'fecha_ingreso' => $e->fecha_ingreso->format('Y-m-d'),
+                        'ejercicio' => $p->ejercicio, 'dias_aguinaldo' => (int) $empresa->dias_aguinaldo, 'metodo_isr' => $empresa->metodo_isr_extraordinario ?? 'art174',
+                        'exento_acumulado' => (float) ($exentos[$e->id]['P007'] ?? 0),
+                        'concepto' => $porClave['P007'] ?? throw new ReglaNegocioException('Falta el concepto P007 Aguinaldo: ejecuta php artisan migrate.', 422),
+                        'deduccion_isr' => $porClave->firstWhere('metodo', 'isr'), 'parametros' => $parametros,
+                    ]);
+                    foreach ($calculo['avisos'] as $a) {
+                        $avisos[] = "{$e->nombre_completo}: {$a}";
+                    }
+                    $this->guardarBorrador($p, $e, $salario, null, $calculo);
+
+                    continue;
+                }
                 $calculo = CalculadoraNomina::calcular([
                     'salario_mensual' => $salario, 'divisor' => (float) $empresa->divisor_salario_diario, 'tipo_periodo' => $p->tipo,
                     'dias_periodo' => $p->dias, 'fecha_ingreso' => $e->fecha_ingreso->format('Y-m-d'), 'inicio' => $inicio, 'fin' => $fin,
@@ -141,6 +182,8 @@ class NominaService
                     'capturados' => $i?->capturados ?? [],
                     'dias_fuera' => DiasLaborados::fuera($inicio, $fin, $p->dias, $e->fecha_ingreso->format('Y-m-d'), $e->fecha_baja?->format('Y-m-d')),
                     'conceptos' => $conceptos, 'parametros' => $parametros,
+                    'vacaciones' => (int) $vacaciones->get($e->id, 0), 'prima_vacacional' => (float) $empresa->prima_vacacional,
+                    'exento_acumulado' => $exentos[$e->id] ?? [],
                 ]);
                 if ($e->faltantes()) {
                     $calculo['avisos'][] = 'Expediente incompleto: falta '.implode(', ', $e->faltantes()).'.';
@@ -263,8 +306,36 @@ class NominaService
     {
         return ['id' => $p->id, 'tipo' => $p->tipo, 'ejercicio' => $p->ejercicio, 'numero' => $p->numero, 'inicio' => $p->inicio->format('Y-m-d'),
             'fin' => $p->fin->format('Y-m-d'), 'fecha_pago' => $p->fecha_pago->format('Y-m-d'), 'dias' => $p->dias, 'fin_de_mes' => $p->fin_de_mes,
-            'estado' => $p->estado, 'etiqueta' => $p->etiqueta(), 'calculado_at' => $p->calculado_at?->format('d/m/Y H:i'),
+            'estado' => $p->estado, 'etiqueta' => $p->etiqueta(), 'clase' => $p->clase ?? 'ordinaria', 'calculado_at' => $p->calculado_at?->format('d/m/Y H:i'),
             'autorizado_at' => $p->autorizado_at?->format('d/m/Y H:i'), 'autorizado_por' => $p->autorizador?->name];
+    }
+
+    /**
+     * v13: crea la nómina especial de aguinaldo del ejercicio (una por año). La LFT pide pagarlo antes del 20 de diciembre.
+     */
+    public function crearAguinaldo(Empresa $empresa, int $ejercicio, string $fechaPago, User $u): PeriodoNomina
+    {
+        if (substr($fechaPago, 0, 4) !== (string) $ejercicio) {
+            throw new ReglaNegocioException("La fecha de pago debe ser del {$ejercicio}.", 422, ['codigo' => 'FECHA_FUERA']);
+        }
+        $existe = PeriodoNomina::where(['empresa_id' => $empresa->id, 'tipo' => 'especial', 'clase' => 'aguinaldo', 'ejercicio' => $ejercicio])->first();
+        if ($existe) {
+            throw new ReglaNegocioException("Ya existe la nómina de aguinaldo {$ejercicio}.", 409, ['codigo' => 'YA_EXISTE', 'periodo_id' => $existe->id]);
+        }
+        $numero = (int) PeriodoNomina::where(['empresa_id' => $empresa->id, 'tipo' => 'especial', 'ejercicio' => $ejercicio])->max('numero') + 1;
+        $p = PeriodoNomina::create(['empresa_id' => $empresa->id, 'tipo' => 'especial', 'clase' => 'aguinaldo', 'ejercicio' => $ejercicio, 'numero' => $numero,
+            'inicio' => "{$ejercicio}-01-01", 'fin' => "{$ejercicio}-12-31", 'fecha_pago' => $fechaPago, 'dias' => (int) $empresa->dias_aguinaldo,
+            'fin_de_mes' => false, 'estado' => 'abierto']);
+        AuditLog::registrar('CREAR_AGUINALDO', 'PeriodoNomina', $p->id, null, ['ejercicio' => $ejercicio, 'fecha_pago' => $fechaPago], $u->id);
+
+        return $p;
+    }
+
+    /** v13: días de vacaciones que INICIAN dentro del periodo, por empleado (generan prima vacacional en ese periodo). */
+    public function vacacionesDelPeriodo(PeriodoNomina $p): \Illuminate\Support\Collection
+    {
+        return Vacacion::whereDate('desde', '>=', $p->inicio->format('Y-m-d'))->whereDate('desde', '<=', $p->fin->format('Y-m-d'))
+            ->groupBy('empleado_id')->selectRaw('empleado_id, SUM(dias) as dias')->pluck('dias', 'empleado_id');
     }
 
     // ───────────────────────── internos ─────────────────────────
@@ -295,6 +366,10 @@ class NominaService
         }
         foreach ($c['deducciones'] as $l) {
             NominaReciboLinea::create(['recibo_id' => $r->id, 'tipo' => 'deduccion', 'clave' => $l['clave'], 'nombre' => $l['nombre'], 'clave_sat' => $l['clave_sat'],
+                'importe' => $l['importe']]);
+        }
+        foreach (array_filter($c['otros_pagos'] ?? [], fn ($o) => (float) $o['importe'] > 0) as $l) {   // v13 (el subsidio es informativo, importe 0)
+            NominaReciboLinea::create(['recibo_id' => $r->id, 'tipo' => 'otro_pago', 'clave' => $l['clave'], 'nombre' => $l['nombre'], 'clave_sat' => $l['clave_sat'],
                 'importe' => $l['importe']]);
         }
     }

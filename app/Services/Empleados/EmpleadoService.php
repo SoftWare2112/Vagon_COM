@@ -67,7 +67,7 @@ class EmpleadoService
     {
         DB::transaction(function () use ($e, $salario, $desde, $motivo, $u) {
             EmpleadoSalario::create(['empleado_id' => $e->id, 'salario_mensual' => $salario, 'desde' => $desde, 'motivo' => $motivo, 'creado_por' => $u->id]);
-            $vigente = $e->salarios()->where('desde', '<=', now()->toDateString())->first();
+            $vigente = $e->salarios()->whereDate('desde', '<=', now()->toDateString())->first();
             $anterior = $e->salario_mensual;
             $e->update(['salario_mensual' => $vigente?->salario_mensual ?? $salario]);
             EmpleadoMovimiento::registrar($e->id, 'salario', $desde, 'Sueldo mensual de $'.number_format((float) $anterior, 2).' a $'.number_format($salario, 2).($motivo ? " · {$motivo}" : ''),

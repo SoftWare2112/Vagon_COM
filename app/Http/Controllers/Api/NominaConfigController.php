@@ -40,6 +40,8 @@ class NominaConfigController extends Controller
             'zona_salario_minimo' => ['required', Rule::in(['general', 'frontera_norte'])],
             // v12: el timbrado del CFDI es opcional; para activarlo el emisor debe tener sus datos fiscales completos
             'timbrado_activo' => ['sometimes', 'boolean'],
+            // v13: método de ISR para el aguinaldo (art. 174 RLISR o art. 96 LISR)
+            'metodo_isr_extraordinario' => ['sometimes', Rule::in(['art174', 'art96'])],
         ], [
             'registro_patronal.regex' => 'El registro patronal del IMSS tiene 11 caracteres.',
             'dias_aguinaldo.between' => 'El aguinaldo mínimo de ley es de 15 días.',
@@ -203,7 +205,7 @@ class NominaConfigController extends Controller
         $ejercicio = $request->integer('ejercicio', (int) now()->format('Y'));
 
         return response()->json(PeriodoNomina::where(['empresa_id' => $empresa->id, 'tipo' => $tipo, 'ejercicio' => $ejercicio])->orderBy('numero')->get()
-            ->map(fn (PeriodoNomina $p) => [...$p->only(['id', 'tipo', 'ejercicio', 'numero', 'dias', 'fin_de_mes', 'estado']),
+            ->map(fn (PeriodoNomina $p) => [...$p->only(['id', 'tipo', 'ejercicio', 'numero', 'dias', 'fin_de_mes', 'estado', 'clase']),
                 'inicio' => $p->inicio->format('Y-m-d'), 'fin' => $p->fin->format('Y-m-d'), 'fecha_pago' => $p->fecha_pago->format('Y-m-d'), 'etiqueta' => $p->etiqueta()]));
     }
 

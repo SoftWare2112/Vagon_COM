@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EmpleadoController;
 use App\Http\Controllers\Api\NominaConfigController;
 use App\Http\Controllers\Api\NominaController;
+use App\Http\Controllers\Api\AjusteAnualController;
+use App\Http\Controllers\Api\VacacionesController;
 use App\Http\Controllers\Api\PublicacionController;
 use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\UsuarioController;
@@ -35,6 +37,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('empleados/alertas', [EmpleadoController::class, 'alertas']);
             Route::get('empleados/{empleado}', [EmpleadoController::class, 'show']);
             Route::get('empleados/{empleado}/simular', [EmpleadoController::class, 'simular']);
+            Route::get('empleados/{empleado}/vacaciones', [VacacionesController::class, 'index']);   // v13
             Route::get('puestos', [NominaConfigController::class, 'puestos']);
             Route::get('nomina/empresa', [NominaConfigController::class, 'empresa']);
             Route::get('nomina/conceptos', [NominaConfigController::class, 'conceptos']);
@@ -48,6 +51,8 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::post('empleados/{empleado}/reactivar', [EmpleadoController::class, 'reactivar']);
             Route::post('empleados/{empleado}/salario', [EmpleadoController::class, 'salario']);
             Route::post('empleados/{empleado}/contrato', [EmpleadoController::class, 'contrato']);
+            Route::post('empleados/{empleado}/vacaciones', [VacacionesController::class, 'store']);   // v13
+            Route::delete('vacaciones/{vacacion}', [VacacionesController::class, 'destroy']);
             Route::post('puestos', [NominaConfigController::class, 'crearPuesto']);
         });
         // v11: Configuración de nómina
@@ -58,10 +63,16 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('nomina/recibos/{recibo}', [NominaController::class, 'recibo']);
             Route::get('nomina/reportes/lista-de-raya/{periodo}', [NominaController::class, 'listaDeRaya']);
             Route::get('nomina/reportes/acumulados', [NominaController::class, 'acumulados']);
+            // v13: recibos en PDF y cálculo anual
+            Route::get('nomina/recibos/{recibo}/pdf', [NominaController::class, 'pdf']);
+            Route::get('nomina/periodos/{periodo}/recibos-pdf', [NominaController::class, 'pdfPeriodo']);
+            Route::get('nomina/periodos/{periodo}/envios', [NominaController::class, 'envios']);
+            Route::get('nomina/ajuste-anual', [AjusteAnualController::class, 'index']);
         });
         Route::middleware('can:'.P::NominaCalcular->value)->group(function () {
             Route::put('nomina/periodos/{periodo}/incidencias', [NominaController::class, 'incidencias']);
             Route::post('nomina/periodos/{periodo}/calcular', [NominaController::class, 'calcular']);
+            Route::post('nomina/aguinaldo', [NominaController::class, 'crearAguinaldo']);   // v13
         });
         Route::middleware('can:'.P::NominaAutorizar->value)->group(function () {
             Route::post('nomina/periodos/{periodo}/autorizar', [NominaController::class, 'autorizar']);
@@ -70,6 +81,13 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::post('nomina/respaldos', [NominaController::class, 'crearRespaldo']);
             Route::get('nomina/respaldos/{archivo}', [NominaController::class, 'descargarRespaldo'])->where('archivo', 'respaldo-[\w-]+\.sql');
             Route::post('nomina/reconstruir', [NominaController::class, 'reconstruir']);
+            // v13: envío de recibos por correo y cálculo anual
+            Route::post('nomina/recibos/{recibo}/enviar', [NominaController::class, 'enviarRecibo']);
+            Route::post('nomina/periodos/{periodo}/enviar-recibos', [NominaController::class, 'enviarPeriodo']);
+            Route::post('nomina/ajuste-anual/calcular', [AjusteAnualController::class, 'calcular']);
+            Route::patch('nomina/ajuste-anual/{ajuste}', [AjusteAnualController::class, 'declaracion']);
+            Route::post('nomina/ajuste-anual/aplicar', [AjusteAnualController::class, 'aplicar']);
+            Route::post('nomina/ajuste-anual/quitar', [AjusteAnualController::class, 'quitar']);
         });
         Route::get('indicadores', [NominaController::class, 'indicadores'])->can(P::IndicadoresVer->value);
         Route::get('nomina/periodos/{periodo}/captura', [NominaController::class, 'captura']);   // nomina.ver O nomina.calcular (se revisa en el controlador)

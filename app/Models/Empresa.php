@@ -11,7 +11,7 @@ class Empresa extends Model
     use Auditable;
 
     protected $fillable = ['nombre', 'razon_social', 'rfc', 'regimen_fiscal', 'registro_patronal', 'codigo_postal', 'estado',
-        'periodicidad', 'divisor_salario_diario', 'dias_aguinaldo', 'prima_vacacional', 'zona_salario_minimo', 'timbrado_activo'];
+        'periodicidad', 'divisor_salario_diario', 'dias_aguinaldo', 'prima_vacacional', 'zona_salario_minimo', 'timbrado_activo', 'metodo_isr_extraordinario'];
 
     protected function casts(): array
     {

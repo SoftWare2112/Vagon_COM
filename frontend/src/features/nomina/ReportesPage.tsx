@@ -4,8 +4,8 @@ import { useSearchParams } from 'react-router-dom';
 import { empleadosApi, nominaApi, nominaPeriodoApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { Aviso } from '../../components/Aviso';
-import type { Periodicidad } from '../../types';
-import { dinero, fecha, hoyISO, PERIODICIDADES } from '../../utils/formato';
+import type { TipoPeriodo } from '../../types';
+import { dinero, fecha, hoyISO, TIPOS_PERIODO } from '../../utils/formato';
 import { descargarCSV } from '../../utils/exportar';
 import { EtiquetaEstado } from './piezas';
 
@@ -34,7 +34,8 @@ function ListaDeRaya({ periodoId, onPeriodo }: { periodoId?: number; onPeriodo: 
   const { data: empresa } = useQuery({ queryKey: ['empresa'], queryFn: nominaApi.empresa, staleTime: 300_000 });
   const anioActual = Number(hoyISO().slice(0, 4));
   const [anio, setAnio] = useState(anioActual);
-  const tipo = empresa?.periodicidad ?? 'quincenal';
+  const [tipoElegido, setTipo] = useState<TipoPeriodo | null>(null);
+  const tipo = tipoElegido ?? empresa?.periodicidad ?? 'quincenal';
   const { data: historial = [] } = useQuery({ queryKey: ['historial', tipo, anio], queryFn: () => nominaPeriodoApi.historial(anio, tipo), enabled: !!empresa });
   const conNomina = historial.filter((p) => p.recibos > 0);
   const id = periodoId ?? conNomina.filter((p) => p.estado === 'autorizado').at(-1)?.id ?? conNomina.at(-1)?.id;
@@ -53,13 +54,15 @@ function ListaDeRaya({ periodoId, onPeriodo }: { periodoId?: number; onPeriodo: 
     <div>
       <div className="historial-barra no-imprimir">
         <select aria-label="Ejercicio" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>{[anioActual - 1, anioActual].map((a) => <option key={a}>{a}</option>)}</select>
+        <select aria-label="Tipo de nómina" value={tipo} onChange={(e) => setTipo(e.target.value as TipoPeriodo)}>
+          {Object.entries(TIPOS_PERIODO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         {conNomina.length > 0 && <select aria-label="Periodo" className="select-periodo" value={id ?? ''} onChange={(e) => onPeriodo(Number(e.target.value))}>
-          {conNomina.map((p) => <option key={p.id} value={p.id}>{String(p.numero).padStart(2, '0')} · {fecha(p.inicio)} – {fecha(p.fin)}{p.estado !== 'autorizado' ? ' · pre-nómina' : ''}</option>)}
+          {conNomina.map((p) => <option key={p.id} value={p.id}>{p.tipo === 'especial' ? p.etiqueta : `${String(p.numero).padStart(2, '0')} · ${fecha(p.inicio)} – ${fecha(p.fin)}`}{p.estado !== 'autorizado' ? ' · pre-nómina' : ''}</option>)}
         </select>}
         <button className="btn btn-sec" disabled={!data} onClick={exportar}>Exportar a Excel</button>
         <button className="btn btn-sec" disabled={!data} onClick={() => window.print()}>Imprimir / PDF</button>
       </div>
-      {!id && <div className="vacio">No hay nóminas calculadas en {anio} ({PERIODICIDADES[tipo].toLowerCase()}).</div>}
+      {!id && <div className="vacio">No hay nóminas calculadas en {anio} ({TIPOS_PERIODO[tipo].toLowerCase()}).</div>}
       {isLoading && <p>Cargando…</p>}
       {isError && <Aviso tipo="error">{mensajeDeError(error)}</Aviso>}
       {data && (
@@ -72,7 +75,7 @@ function ListaDeRaya({ periodoId, onPeriodo }: { periodoId?: number; onPeriodo: 
           <div className="tabla-scroll">
             <table className="tabla tabla-compacta tabla-reporte">
               <thead><tr><th>Núm.</th><th>Empleado</th><th className="num">Días</th>
-                {data.columnas.map((c) => <th key={c.clave} className={`num ${c.tipo === 'deduccion' ? 'col-deduccion' : ''}`}>{c.nombre}</th>)}
+                {data.columnas.map((c) => <th key={c.clave} className={`num ${c.tipo === 'deduccion' ? 'col-deduccion' : c.tipo === 'otro_pago' ? 'col-otro' : ''}`}>{c.nombre}</th>)}
                 <th className="num">Percepciones</th><th className="num">Deducciones</th><th className="num">Neto</th></tr></thead>
               <tbody>
                 {data.filas.map((f) => (
@@ -96,7 +99,7 @@ function AcumuladosVista() {
   const { data: empresa } = useQuery({ queryKey: ['empresa'], queryFn: nominaApi.empresa, staleTime: 300_000 });
   const anioActual = Number(hoyISO().slice(0, 4));
   const [anio, setAnio] = useState(anioActual);
-  const [tipo, setTipo] = useState<Periodicidad | null>(null);
+  const [tipo, setTipo] = useState<TipoPeriodo | null>(null);
   const [empleado, setEmpleado] = useState<number | undefined>();
   const t = tipo ?? empresa?.periodicidad ?? 'quincenal';
   const { data: empleados = [] } = useQuery({ queryKey: ['empleados', { estado: 'todos' }], queryFn: () => empleadosApi.listar({ estado: 'todos' }) });
@@ -111,8 +114,8 @@ function AcumuladosVista() {
     <div>
       <div className="historial-barra no-imprimir">
         <select aria-label="Ejercicio" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>{[anioActual - 1, anioActual].map((a) => <option key={a}>{a}</option>)}</select>
-        <select aria-label="Periodicidad" value={t} onChange={(e) => setTipo(e.target.value as Periodicidad)}>
-          {Object.entries(PERIODICIDADES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+        <select aria-label="Periodicidad" value={t} onChange={(e) => setTipo(e.target.value as TipoPeriodo)}>
+          {Object.entries(TIPOS_PERIODO).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
         <select aria-label="Empleado" value={empleado ?? ''} onChange={(e) => setEmpleado(e.target.value ? Number(e.target.value) : undefined)}>
           <option value="">Todos los empleados</option>{empleados.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select>
         <button className="btn btn-sec" disabled={!data?.filas.length} onClick={exportar}>Exportar a Excel</button>

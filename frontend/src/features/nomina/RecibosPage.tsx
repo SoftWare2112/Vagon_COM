@@ -5,7 +5,7 @@ import { empleadosApi, nominaPeriodoApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { Aviso } from '../../components/Aviso';
 import { dinero, fecha } from '../../utils/formato';
-import { SobreRecibo } from './piezas';
+import { AccionesRecibo, SobreRecibo } from './piezas';
 
 /** v12 — Sobre-recibo de periodos anteriores: se elige el empleado y el ejercicio/periodo para ver exactamente qué se le pagó. */
 export function RecibosPage() {
@@ -41,9 +41,9 @@ export function RecibosPage() {
           }}>{ejercicios.map((a) => <option key={a}>{a}</option>)}</select>
           <select aria-label="Periodo" className="select-periodo" value={reciboId ?? ''} onChange={(e) => setParams({ empleado: String(empleadoId), recibo: e.target.value })}>
             {recibos.filter((r) => r.ejercicio === (elegido?.ejercicio ?? ejercicios[0])).map((r) => (
-              <option key={r.id} value={r.id}>{String(r.numero).padStart(2, '0')} · pago {fecha(r.fecha_pago)} · {dinero(r.neto)}</option>))}
+              <option key={r.id} value={r.id}>{r.tipo === 'especial' ? 'Aguinaldo' : String(r.numero).padStart(2, '0')} · pago {fecha(r.fecha_pago)} · {dinero(r.neto)}</option>))}
           </select>
-          <button className="btn btn-sec" disabled={!recibo} onClick={() => window.print()}>Imprimir / PDF</button>
+          {recibo && <AccionesRecibo r={recibo} />}
         </>}
       </div>
       {!empleadoId && <div className="vacio">Elige un empleado para ver sus recibos.</div>}

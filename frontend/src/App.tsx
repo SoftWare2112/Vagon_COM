@@ -15,6 +15,7 @@ import { NominaPage } from './features/nomina/NominaPage';
 import { HistorialPage } from './features/nomina/HistorialPage';
 import { RecibosPage } from './features/nomina/RecibosPage';
 import { ReportesPage } from './features/nomina/ReportesPage';
+import { AjusteAnualPage } from './features/nomina/AjusteAnualPage';
 import { IndicadoresPage } from './features/indicadores/IndicadoresPage';
 import { PublicacionesPage } from './features/publicaciones/PublicacionesPage';
 import { PublicacionPage } from './features/publicaciones/PublicacionPage';
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="nomina/historial" element={<HistorialPage />} />
               <Route path="nomina/recibos" element={<RecibosPage />} />
               <Route path="nomina/reportes" element={<ReportesPage />} />
+              <Route path="nomina/ajuste-anual" element={<AjusteAnualPage />} />
             </Route>
             <Route element={<Protegida permiso="indicadores.ver" />}><Route path="indicadores" element={<IndicadoresPage />} /></Route>
             {/* v10: Publicaciones */}

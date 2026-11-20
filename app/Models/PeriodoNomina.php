@@ -10,7 +10,10 @@ class PeriodoNomina extends Model
     protected $table = 'periodos_nomina';
 
     protected $fillable = ['empresa_id', 'tipo', 'ejercicio', 'numero', 'inicio', 'fin', 'fecha_pago', 'dias', 'fin_de_mes', 'estado',
-        'calculado_at', 'autorizado_at', 'autorizado_por', 'notas'];
+        'calculado_at', 'autorizado_at', 'autorizado_por', 'notas', 'clase'];
+
+    /** v13: las nóminas especiales (aguinaldo) usan tipo «especial» y su clase. */
+    public const CLASES = ['ordinaria' => 'Ordinaria', 'aguinaldo' => 'Aguinaldo'];
 
     /** v12: abierto (se capturan incidencias) → calculado (pre-nómina revisable) → autorizado (solo lectura). */
     public const ESTADOS = ['abierto' => 'Abierto', 'calculado' => 'Pre-nómina', 'autorizado' => 'Autorizado'];
@@ -35,8 +38,16 @@ class PeriodoNomina extends Model
         return $this->estado === 'autorizado';
     }
 
+    public function especial(): bool
+    {
+        return $this->tipo === 'especial';
+    }
+
     public function etiqueta(): string
     {
+        if ($this->especial()) {
+            return (self::CLASES[$this->clase] ?? 'Nómina especial')." {$this->ejercicio} (pago {$this->fecha_pago->format('d/m/Y')})";
+        }
         $tipo = ['semanal' => 'Semana', 'quincenal' => 'Quincena', 'mensual' => 'Mes'][$this->tipo] ?? 'Periodo';
 
         return "{$tipo} {$this->numero}/{$this->ejercicio} ({$this->inicio->format('d/m')} al {$this->fin->format('d/m/Y')})";

@@ -89,6 +89,9 @@ function PestanaEmpresa({ edita }: { edita: boolean }) {
             <small className="tenue">Salario diario = sueldo mensual ÷ {d.divisor_salario_diario}. Otras empresas usan 30.4.</small>{err('divisor_salario_diario')}</label>
           <label>Días de aguinaldo<input type="number" min={15} max={90} value={d.dias_aguinaldo} onChange={(e) => set({ dias_aguinaldo: Number(e.target.value) })} />{err('dias_aguinaldo')}</label>
           <label>Prima vacacional (%)<input type="number" min={25} max={100} value={d.prima_vacacional} onChange={(e) => set({ prima_vacacional: Number(e.target.value) })} />{err('prima_vacacional')}</label>
+          <label>ISR del aguinaldo<select value={d.metodo_isr_extraordinario ?? 'art174'} onChange={(e) => set({ metodo_isr_extraordinario: e.target.value as Empresa['metodo_isr_extraordinario'] })}>
+            <option value="art174">Art. 174 RLISR (tasa promedio del pago)</option><option value="art96">Art. 96 LISR (se suma al ingreso del mes)</option></select>
+            <small className="tenue">Los dos son legales; el recibo de aguinaldo muestra ambos para comparar.</small></label>
           <label>Zona de salario mínimo<select value={d.zona_salario_minimo} onChange={(e) => set({ zona_salario_minimo: e.target.value as Empresa['zona_salario_minimo'] })}>
             <option value="general">General</option><option value="frontera_norte">Zona Libre de la Frontera Norte</option></select></label>
         </div>
@@ -102,6 +105,7 @@ function PestanaEmpresa({ edita }: { edita: boolean }) {
 const METODOS: Record<ConceptoNomina['metodo'], string> = {
   sueldo: 'Salario diario × días pagados', fijo: 'Monto fijo', por_evento: '% del salario diario por evento', captura: 'Se captura en cada nómina',
   isr: 'Tarifa del ISR menos subsidio', imss: 'Cuotas obreras sobre el SBC',
+  prima_vacacional: '% de prima vacacional sobre los días de vacaciones', aguinaldo: 'Nómina especial de aguinaldo',
 };
 function reglaTexto(c: ConceptoNomina): string {
   const r = c.regla ?? {};
@@ -113,6 +117,9 @@ function reglaTexto(c: ConceptoNomina): string {
   if (r.sin_retardos) partes.push('si no tuvo retardos');
   if (r.antiguedad_meses_min) partes.push(`desde ${r.antiguedad_meses_min} meses de antigüedad`);
   if (r.frecuencia === 'unico') partes.push('una sola vez');
+  if (r.solo_ajuste) return 'Lo llena «Cálculo anual de ISR» al aplicarlo';
+  if (c.metodo === 'prima_vacacional') return METODOS.prima_vacacional;
+  if (c.metodo === 'aguinaldo') return METODOS.aguinaldo;
   return partes.length ? partes.join(' · ') : METODOS[c.metodo];
 }
 
@@ -126,7 +133,7 @@ function PestanaConceptos({ edita }: { edita: boolean }) {
     if (!confirm(`¿Eliminar el concepto «${c.nombre}»?`)) return;
     try { await nominaApi.eliminarConcepto(c.id); void qc.invalidateQueries({ queryKey: ['conceptos'] }); } catch (x) { setAviso(mensajeDeError(x)); }
   };
-  const tabla = (tipo: 'percepcion' | 'deduccion') => (
+  const tabla = (tipo: 'percepcion' | 'deduccion' | 'otro_pago') => (
     <div className="tabla-scroll">
       <table className="tabla">
         <thead><tr><th>Clave</th><th>Concepto</th><th>SAT</th><th>Cómo se calcula</th><th>Estado</th>{edita && <th />}</tr></thead>
@@ -159,6 +166,8 @@ function PestanaConceptos({ edita }: { edita: boolean }) {
       {tabla('percepcion')}
       <h2 className="seccion-titulo">Deducciones</h2>
       {tabla('deduccion')}
+      <h2 className="seccion-titulo">Otros pagos</h2>
+      {tabla('otro_pago')}
       <p className="tenue">Infonavit, Fonacot y pensión alimenticia se agregarán en la v15. Mientras tanto puedes crear una deducción «Se captura en cada nómina».</p>
       {editando && <EditorConcepto c={editando} onCerrar={() => setEditando(null)} onListo={() => { setEditando(null); void qc.invalidateQueries({ queryKey: ['conceptos'] }); }} />}
     </div>

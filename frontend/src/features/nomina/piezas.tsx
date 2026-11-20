@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../../auth/AuthContext';
 import { nominaApi, nominaPeriodoApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { Aviso } from '../../components/Aviso';
@@ -52,8 +54,8 @@ export function SobreRecibo({ r }: { r: Recibo }) {
         <dt>RFC</dt><dd className="mono">{r.rfc ?? '—'}</dd>
         <dt>CURP</dt><dd className="mono">{r.curp ?? '—'}</dd>
         <dt>NSS</dt><dd className="mono">{r.nss ?? '—'}</dd>
-        <dt>Salario diario / SDI</dt><dd>{dinero(r.salario_diario)} / {dinero(r.sdi)}</dd>
-        <dt>Días pagados</dt><dd>{r.dias_pagados} de {r.periodo.dias}{r.faltas ? ` · ${r.faltas} falta(s)` : ''}{r.retardos ? ` · ${r.retardos} retardo(s)` : ''}{r.domingos ? ` · ${r.domingos} domingo(s)` : ''}</dd>
+        <dt>{r.calculo.tipo_calculo === 'aguinaldo' ? 'Salario diario' : 'Salario diario / SDI'}</dt><dd>{dinero(r.salario_diario)}{r.calculo.tipo_calculo === 'aguinaldo' ? '' : ` / ${dinero(r.sdi)}`}</dd>
+        <dt>Días pagados</dt><dd>{r.calculo.tipo_calculo === 'aguinaldo' ? `${(r.calculo.dias_aguinaldo ?? 0).toFixed(2)} días de aguinaldo` : `${r.dias_pagados} de ${r.periodo.dias}`}{r.calculo.tipo_calculo !== 'aguinaldo' && r.faltas ? ` · ${r.faltas} falta(s)` : ''}{r.retardos ? ` · ${r.retardos} retardo(s)` : ''}{r.domingos ? ` · ${r.domingos} domingo(s)` : ''}</dd>
         <dt>Folio fiscal (UUID)</dt><dd>{r.cfdi.uuid ? <span className="mono">{r.cfdi.uuid}</span> : <span className="tenue">{CFDI[r.cfdi.estado]}</span>}</dd>
       </dl>
       {r.integridad === 'alterado' && <Aviso tipo="error">Este recibo cambió en la base de datos después de autorizarse (su huella no coincide). Avisa al administrador.</Aviso>}
@@ -66,10 +68,31 @@ export function ReciboModal({ id, onCerrar }: { id: number; onCerrar: () => void
   const { data, isLoading, isError, error } = useQuery({ queryKey: ['recibo', id], queryFn: () => nominaPeriodoApi.recibo(id) });
   return (
     <Modal titulo="Recibo" abierto onCerrar={onCerrar} ancho="lg"
-      pie={<><button className="btn btn-sec" onClick={() => window.print()}>Imprimir / PDF</button><button className="btn" onClick={onCerrar}>Cerrar</button></>}>
+      pie={<>{data && <AccionesRecibo r={data} />}<button className="btn" onClick={onCerrar}>Cerrar</button></>}>
       {isLoading && <p>Cargando…</p>}
       {isError && <Aviso tipo="error">{mensajeDeError(error)}</Aviso>}
       {data && <SobreRecibo r={data} />}
     </Modal>
+  );
+}
+
+/** v13: descargar el recibo en PDF (formato oficial con importe con letra) y enviarlo por correo al empleado. */
+export function AccionesRecibo({ r }: { r: Recibo }) {
+  const { puede } = useAuth();
+  const [estado, setEstado] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
+  const nombre = `recibo-${r.numero_empleado}-${r.periodo.ejercicio}-${r.periodo.tipo === 'especial' ? 'aguinaldo' : String(r.periodo.numero).padStart(2, '0')}.pdf`;
+  const enviar = async () => {
+    try {
+      const x = await nominaPeriodoApi.enviarRecibo(r.id);
+      setEstado(x.estado === 'enviado' ? { tipo: 'exito', texto: `Enviado a ${x.email}` }
+        : { tipo: 'error', texto: x.estado === 'sin_correo' ? 'El empleado no tiene correo en su expediente.' : (x.error ?? 'No se pudo enviar.') });
+    } catch (e) { setEstado({ tipo: 'error', texto: mensajeDeError(e) }); }
+  };
+  return (
+    <>
+      {estado && <small className={estado.tipo === 'exito' ? 'texto-ok' : 'texto-peligro'}>{estado.texto}</small>}
+      <button className="btn btn-sec" onClick={() => void nominaPeriodoApi.pdf(r.id, nombre).catch((e) => setEstado({ tipo: 'error', texto: mensajeDeError(e) }))}>Descargar PDF</button>
+      {r.estado === 'autorizado' && puede('nomina.autorizar') && <button className="btn btn-sec" onClick={() => void enviar()}>Enviar por correo</button>}
+    </>
   );
 }

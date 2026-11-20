@@ -13,6 +13,7 @@ const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] =
   { a: '/nomina', texto: 'Nómina del periodo', icono: '🧮', permisos: ['nomina.ver', 'nomina.calcular'] },
   { a: '/nomina/historial', texto: 'Historial y recibos', icono: '🗂', permisos: ['nomina.ver'] },
   { a: '/nomina/reportes', texto: 'Reportes', icono: '📑', permisos: ['nomina.ver'] },
+  { a: '/nomina/ajuste-anual', texto: 'Cálculo anual de ISR', icono: '🧾', permisos: ['nomina.ver'] },
   { a: '/indicadores', texto: 'Indicadores', icono: '📊', permisos: ['indicadores.ver'] },
   { a: '/nomina/configuracion', texto: 'Configuración de nómina', icono: '⚙', permisos: ['empleados.ver'] },
   { a: '/publicaciones', texto: 'Publicaciones', icono: '📣', permisos: ['publicaciones.ver'] },

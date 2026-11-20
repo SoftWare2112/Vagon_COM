@@ -33,12 +33,26 @@ final class ValoresIniciales
             ['clave' => 'P005', 'nombre' => 'Prima dominical', 'tipo' => 'percepcion', 'clave_sat' => '020', 'metodo' => 'por_evento',
                 'monto' => 0, 'porcentaje' => 25, 'regla' => [], 'exencion' => ['tipo' => 'uma_por_evento', 'umas' => 1], 'orden' => 5,
                 'descripcion' => '25 % del salario diario por cada domingo trabajado (art. 71 LFT). Exenta hasta 1 UMA por domingo.'],
+            // v13: prima vacacional y aguinaldo (exenciones anuales del art. 93 fr. XIV LISR)
+            ['clave' => 'P006', 'nombre' => 'Prima vacacional', 'tipo' => 'percepcion', 'clave_sat' => '021', 'metodo' => 'prima_vacacional',
+                'monto' => 0, 'porcentaje' => 25, 'regla' => [], 'exencion' => ['tipo' => 'uma_anual', 'umas' => 15], 'sistema' => true, 'orden' => 6,
+                'descripcion' => '% de prima vacacional (Configuración → Empresa) sobre los días de vacaciones que inician en el periodo. Exenta hasta 15 UMA al año.'],
+            ['clave' => 'P007', 'nombre' => 'Aguinaldo', 'tipo' => 'percepcion', 'clave_sat' => '002', 'metodo' => 'aguinaldo',
+                'monto' => 0, 'porcentaje' => 0, 'regla' => [], 'exencion' => ['tipo' => 'uma_anual', 'umas' => 30], 'sistema' => true, 'orden' => 7,
+                'descripcion' => 'Se paga en la nómina especial de aguinaldo: días proporcionales × salario diario. Exento hasta 30 UMA al año.'],
             ['clave' => 'D001', 'nombre' => 'Seguro Social (IMSS)', 'tipo' => 'deduccion', 'clave_sat' => '001', 'metodo' => 'imss',
                 'monto' => 0, 'porcentaje' => 0, 'regla' => [], 'exencion' => ['tipo' => 'ninguna'], 'sistema' => true, 'orden' => 20,
                 'descripcion' => 'Cuotas obreras del IMSS sobre el salario base de cotización.'],
             ['clave' => 'D002', 'nombre' => 'ISR', 'tipo' => 'deduccion', 'clave_sat' => '002', 'metodo' => 'isr',
                 'monto' => 0, 'porcentaje' => 0, 'regla' => [], 'exencion' => ['tipo' => 'ninguna'], 'sistema' => true, 'orden' => 21,
                 'descripcion' => 'Impuesto Sobre la Renta retenido (tarifa art. 96 menos subsidio para el empleo).'],
+            // v13: resultado del cálculo anual (art. 97 LISR); se llenan desde «Ajuste anual» → Aplicar
+            ['clave' => 'D003', 'nombre' => 'ISR a cargo por ajuste anual', 'tipo' => 'deduccion', 'clave_sat' => '002', 'metodo' => 'captura',
+                'monto' => 0, 'porcentaje' => 0, 'regla' => ['solo_ajuste' => true], 'exencion' => ['tipo' => 'ninguna'], 'sistema' => true, 'orden' => 22,
+                'descripcion' => 'Diferencia a cargo del cálculo anual de ISR. Si se aplica en el año siguiente, el contador puede cambiar la clave SAT a 101.'],
+            ['clave' => 'O001', 'nombre' => 'ISR a favor por ajuste anual', 'tipo' => 'otro_pago', 'clave_sat' => '004', 'metodo' => 'captura',
+                'monto' => 0, 'porcentaje' => 0, 'regla' => ['solo_ajuste' => true], 'exencion' => ['tipo' => 'ninguna'], 'sistema' => true, 'orden' => 30,
+                'descripcion' => 'Saldo a favor del cálculo anual que se devuelve al trabajador (otro pago 004: aplicación de saldo a favor por compensación anual).'],
         ];
     }
 
@@ -72,6 +86,11 @@ final class ValoresIniciales
                 [0.01, 0, 1.92], [844.60, 16.22, 6.40], [7168.52, 420.95, 10.88], [12598.03, 1011.68, 16.00], [14644.65, 1339.14, 17.92],
                 [17533.65, 1856.84, 21.36], [35362.84, 5665.16, 23.52], [55736.69, 10457.09, 30.00], [106410.51, 25659.23, 32.00],
                 [141880.67, 37009.69, 34.00], [425642.00, 133488.54, 35.00]]]],
+            // v13: tarifa anual (art. 152 LISR) para el cálculo anual del art. 97. Anexo 8 RMF 2026, DOF 28/12/2025
+            ['isr_anual', '2026-01-01', ['renglones' => [
+                [0.01, 0, 1.92], [10135.12, 194.59, 6.40], [86022.12, 5051.37, 10.88], [151176.20, 12140.13, 16.00], [175735.67, 16069.64, 17.92],
+                [210403.70, 22282.14, 21.36], [424353.98, 67981.92, 23.52], [668840.15, 125485.07, 30.00], [1276925.99, 307910.81, 32.00],
+                [1702567.98, 444116.23, 34.00], [5107703.93, 1601862.46, 35.00]]]],
         ];
     }
 
@@ -83,7 +102,8 @@ final class ValoresIniciales
             'salario_minimo' => (float) ($vigentes['salario_minimo']['general'] ?? 0),
             'subsidio' => $vigentes['subsidio'] ?? null,
             'imss' => $vigentes['imss_obrero'],
-            'isr' => $vigentes['isr_'.$tipoPeriodo]['renglones'],
+            'isr' => $vigentes['isr_'.($tipoPeriodo === 'especial' ? 'mensual' : $tipoPeriodo)]['renglones'],
+            'isr_mensual' => $vigentes['isr_mensual']['renglones'],   // v13: pagos extraordinarios (art. 96 / art. 174 RLISR)
         ];
     }
 

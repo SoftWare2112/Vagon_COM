@@ -784,3 +784,13 @@ label.en-linea input { width: 90px; }
 .tabla-captura td.col-nombre { background: var(--surface); box-shadow: 1px 0 0 var(--line); }
 .tabla-captura thead th:nth-child(2) { background: var(--header-tabla); }
 .fila-recibo a { color: var(--ink); font-weight: 600; }
+
+/* ───────────── v13 · Vacaciones, aguinaldo, cálculo anual, PDF y correo ───────────── */
+.texto-ok { color: var(--ok-ink); }
+.tabla-reporte th.col-otro { background: #2f4a3a; }
+.saldo-vacaciones { color: var(--ok-ink); }
+.vacaciones .tabla-compacta { margin: 6px 0; }
+.lista-vacaciones li { display: flex; flex-direction: row; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.nuevo-especial { max-width: 720px; display: grid; gap: 10px; }
+.nuevo-especial label { min-width: 200px; }
+.tabla td input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; }

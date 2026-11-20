@@ -5,8 +5,8 @@ import { nominaApi, nominaPeriodoApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { useAuth } from '../../auth/AuthContext';
 import { Aviso } from '../../components/Aviso';
-import type { Periodicidad } from '../../types';
-import { dinero, fecha, hoyISO, PERIODICIDADES } from '../../utils/formato';
+import type { TipoPeriodo } from '../../types';
+import { dinero, fecha, hoyISO, TIPOS_PERIODO } from '../../utils/formato';
 import { EtiquetaEstado } from './piezas';
 
 /**
@@ -16,7 +16,7 @@ import { EtiquetaEstado } from './piezas';
 export function HistorialPage() {
   const { puede } = useAuth();
   const { data: empresa } = useQuery({ queryKey: ['empresa'], queryFn: nominaApi.empresa, staleTime: 300_000 });
-  const [tipo, setTipo] = useState<Periodicidad | null>(null);
+  const [tipo, setTipo] = useState<TipoPeriodo | null>(null);
   const actual = Number(hoyISO().slice(0, 4));
   const [anio, setAnio] = useState(actual);
   const t = tipo ?? empresa?.periodicidad ?? 'quincenal';
@@ -38,7 +38,7 @@ export function HistorialPage() {
       </div>
       <div className="historial-barra">
         <div className="segmentado segmentado-sm">
-          {(Object.keys(PERIODICIDADES) as Periodicidad[]).map((p) => <button key={p} className={t === p ? 'activo' : ''} onClick={() => setTipo(p)}>{PERIODICIDADES[p]}</button>)}
+          {(Object.keys(TIPOS_PERIODO) as TipoPeriodo[]).map((p) => <button key={p} className={t === p ? 'activo' : ''} onClick={() => setTipo(p)}>{TIPOS_PERIODO[p]}</button>)}
         </div>
         <select aria-label="Ejercicio" value={anio} onChange={(e) => setAnio(Number(e.target.value))}>
           {[actual - 2, actual - 1, actual, actual + 1].map((a) => <option key={a}>{a}</option>)}
@@ -62,8 +62,8 @@ export function HistorialPage() {
             <tbody>
               {conNomina.slice().reverse().map((p) => (
                 <tr key={p.id}>
-                  <td className="mono">{String(p.numero).padStart(2, '0')}</td>
-                  <td>{fecha(p.inicio)} – {fecha(p.fin)}</td>
+                  <td className="mono">{p.tipo === 'especial' ? '—' : String(p.numero).padStart(2, '0')}</td>
+                  <td>{p.tipo === 'especial' ? p.etiqueta : `${fecha(p.inicio)} – ${fecha(p.fin)}`}</td>
                   <td>{fecha(p.fecha_pago)}</td>
                   <td><EtiquetaEstado estado={p.estado} />{p.timbrados > 0 && <span className="etiqueta etiqueta-info">{p.timbrados} timbrado(s)</span>}</td>
                   <td className="num">{p.recibos}</td>

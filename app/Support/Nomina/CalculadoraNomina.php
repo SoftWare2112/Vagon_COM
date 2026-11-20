@@ -23,6 +23,7 @@ final class CalculadoraNomina
      *   salario_mensual: float, divisor: float, tipo_periodo: string, dias_periodo: int,
      *   fecha_ingreso: string, inicio: string, fin: string, es_fin_de_mes: bool,
      *   faltas?: int, retardos?: int, domingos?: int, capturados?: array<string, float>, dias_fuera?: int,
+     *   vacaciones?: int, prima_vacacional?: float, exento_acumulado?: array<string, float>,   (v13)
      *   conceptos: list<array>, parametros: array
      * } $e
      */
@@ -37,6 +38,9 @@ final class CalculadoraNomina
         $faltas = min($dias, max(0, (int) ($e['faltas'] ?? 0)));
         $retardos = max(0, (int) ($e['retardos'] ?? 0));
         $domingos = max(0, (int) ($e['domingos'] ?? 0));
+        // v13: días de vacaciones que INICIAN en el periodo (generan prima vacacional) y lo ya exento en el año por concepto
+        $vacaciones = max(0, (int) ($e['vacaciones'] ?? 0));
+        $exentoPrevio = $e['exento_acumulado'] ?? [];
         // Se calcula con el salario diario SIN redondear (p. ej. 20,000 / 30 = 666.666…) para que 15 días den exactamente la mitad del sueldo
         $sd = (float) $e['salario_mensual'] / (float) $e['divisor'];
         $ingreso = new \DateTimeImmutable($e['fecha_ingreso']);
@@ -53,11 +57,14 @@ final class CalculadoraNomina
             if (($c['tipo'] ?? '') !== 'percepcion' || ! ($c['activo'] ?? true)) {
                 continue;
             }
-            [$importe, $eventos, $motivo] = self::importe($c, $sd, $dias, $faltas, $retardos, $domingos, $mesesAntiguedad, $ingreso, $inicio, $fin, (bool) $e['es_fin_de_mes'], $e['capturados'] ?? []);
+            if ($c['metodo'] === 'prima_vacacional') {
+                $c['porcentaje'] = (float) ($e['prima_vacacional'] ?? $c['porcentaje']);   // el % se configura en la empresa
+            }
+            [$importe, $eventos, $motivo] = self::importe($c, $sd, $dias, $faltas, $retardos, $domingos, $mesesAntiguedad, $ingreso, $inicio, $fin, (bool) $e['es_fin_de_mes'], $e['capturados'] ?? [], $vacaciones);
             if ($importe <= 0) {
                 continue;
             }
-            $exento = self::exento($c, $importe, $eventos, $uma);
+            $exento = self::exento($c, $importe, $eventos, $uma, (float) ($exentoPrevio[$c['clave']] ?? 0));
             $percepciones[] = [
                 'clave' => $c['clave'], 'nombre' => $c['nombre'], 'clave_sat' => $c['clave_sat'] ?? null,
                 'importe' => $importe, 'gravado' => round($importe - $exento, 2), 'exento' => $exento, 'detalle' => $motivo,
@@ -109,7 +116,16 @@ final class CalculadoraNomina
             }
         }
         $totalDeducciones = round(array_sum(array_column($deducciones, 'importe')), 2);
-        $neto = round($totalPercepciones - $totalDeducciones, 2);
+
+        // v13: otros pagos capturados (p. ej. ISR a favor del ajuste anual): se suman al neto, no son ingreso gravable
+        $otrosPagos = [];
+        foreach ($e['conceptos'] as $c) {
+            if (($c['tipo'] ?? '') === 'otro_pago' && ($c['activo'] ?? true) && ($importe = round((float) ($e['capturados'][$c['clave']] ?? 0), 2)) > 0) {
+                $otrosPagos[] = ['clave' => $c['clave'], 'nombre' => $c['nombre'], 'clave_sat' => $c['clave_sat'] ?? null, 'importe' => $importe];
+            }
+        }
+        $totalOtros = round(array_sum(array_column($otrosPagos, 'importe')), 2);
+        $neto = round($totalPercepciones - $totalDeducciones + $totalOtros, 2);
         if ($neto < 0) {
             $avisos[] = 'Las deducciones superan a las percepciones: revisa las faltas y los descuentos capturados.';
         }
@@ -118,18 +134,18 @@ final class CalculadoraNomina
             'salario_diario' => round($sd, 2), 'sdi' => $sdi, 'sbc' => $sbc, 'dias_pagados' => $dias - $faltas, 'dias_periodo' => $diasPeriodo, 'dias_fuera' => $fuera,
             'antiguedad' => ['anios' => $aniosAntiguedad, 'meses' => $mesesAntiguedad],
             'percepciones' => $percepciones, 'deducciones' => $deducciones,
-            'otros_pagos' => $subsidioAplicado > 0 ? [['clave' => 'SUBSIDIO', 'nombre' => 'Subsidio para el empleo (aplicado al ISR)', 'clave_sat' => '002', 'subsidio_causado' => $subsidio, 'importe' => 0.0]] : [],
+            'otros_pagos' => [...$otrosPagos, ...($subsidioAplicado > 0 ? [['clave' => 'SUBSIDIO', 'nombre' => 'Subsidio para el empleo (aplicado al ISR)', 'clave_sat' => '002', 'subsidio_causado' => $subsidio, 'importe' => 0.0]] : [])],
             'isr' => [...$tarifa, 'isr_causado' => $isrCausado, 'subsidio_causado' => $subsidio, 'subsidio_aplicado' => $subsidioAplicado, 'isr_retenido' => $isrRetenido],
             'imss' => $imss,
             'totales' => ['percepciones' => $totalPercepciones, 'gravado' => $gravado, 'exento' => round($totalPercepciones - $gravado, 2),
-                'deducciones' => $totalDeducciones, 'neto' => $neto],
+                'deducciones' => $totalDeducciones, 'otros_pagos' => $totalOtros, 'neto' => $neto],
             'avisos' => $avisos,
         ];
     }
 
     /** @return array{0: float, 1: int, 2: string}  [importe, eventos (domingos), explicación] */
     private static function importe(array $c, float $sd, int $dias, int $faltas, int $retardos, int $domingos, int $meses,
-        \DateTimeImmutable $ingreso, \DateTimeImmutable $inicio, \DateTimeImmutable $fin, bool $finDeMes, array $capturados): array
+        \DateTimeImmutable $ingreso, \DateTimeImmutable $inicio, \DateTimeImmutable $fin, bool $finDeMes, array $capturados, int $vacaciones = 0): array
     {
         $r = $c['regla'] ?? [];
         // Condiciones del concepto
@@ -160,19 +176,22 @@ final class CalculadoraNomina
             'fijo' => [round((float) $c['monto'], 2), 1, 'Monto fijo'],
             'por_evento' => [round($domingos * $sd * (float) $c['porcentaje'] / 100, 2), $domingos, "{$domingos} domingo(s) × {$c['porcentaje']}% del salario diario"],
             'captura' => [round((float) ($capturados[$c['clave']] ?? 0), 2), 1, 'Capturado en el periodo'],
+            'prima_vacacional' => [round($vacaciones * $sd * (float) $c['porcentaje'] / 100, 2), $vacaciones,
+                "{$vacaciones} día(s) de vacaciones × ".((float) $c['porcentaje'])."% del salario diario"],
             default => [0.0, 0, ''],
         };
     }
 
-    /** Parte exenta de ISR de una percepción. */
-    private static function exento(array $c, float $importe, int $eventos, float $uma): float
+    /** Parte exenta de ISR de una percepción. `uma_anual`: tope por año calendario, menos lo ya exento en el año. */
+    public static function exento(array $c, float $importe, int $eventos, float $uma, float $exentoPrevio = 0.0): float
     {
         $x = $c['exencion'] ?? ['tipo' => 'ninguna'];
 
         return round(match ($x['tipo'] ?? 'ninguna') {
             'total' => $importe,
             'uma_por_evento' => min($importe, (float) $x['umas'] * $uma * max(1, $eventos)),
-            'uma_tope' => min($importe, (float) $x['umas'] * $uma),   // tope anual: el acumulado del año se controla en la nómina (v12)
+            'uma_tope' => min($importe, (float) $x['umas'] * $uma),
+            'uma_anual' => min($importe, max(0.0, (float) $x['umas'] * $uma - $exentoPrevio)),   // v13: aguinaldo 30 UMA, prima vacacional 15 UMA
             default => 0.0,
         }, 2);
     }

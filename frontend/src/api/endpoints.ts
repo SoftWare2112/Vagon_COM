@@ -1,6 +1,6 @@
 import { http, csrf } from './http';
 import type {
-  Acumulados, Alerta, CalculoNomina, Captura, ConceptoNomina, IndicadoresRespuesta, ListaDeRaya, PeriodoHistorial, Recibo, ReciboLista, Respaldo, DatosEmpleado, DatosPublicacion, Empleado, EmpleadoResumen, Empresa, FiltrosPublicaciones,
+  Acumulados, AjusteAnualRespuesta, EnviosPeriodo, ResultadoEnvio, SaldoVacaciones, TipoPeriodo, Alerta, CalculoNomina, Captura, ConceptoNomina, IndicadoresRespuesta, ListaDeRaya, PeriodoHistorial, Recibo, ReciboLista, Respaldo, DatosEmpleado, DatosPublicacion, Empleado, EmpleadoResumen, Empresa, FiltrosPublicaciones,
   Paginado, PeriodoNomina, Periodicidad, Permiso, Publicacion, RolesRespuesta, TablaFiscal, TipoContrato, Usuario,
 } from '../types';
 
@@ -64,7 +64,7 @@ export const nominaApi = {
   tablas: async () => (await http.get<TablaFiscal[]>('/api/nomina/tablas')).data,
   guardarTabla: async (d: { tipo: string; vigente_desde: string; datos: unknown; fuente?: string }) => (await http.post<TablaFiscal>('/api/nomina/tablas', d)).data,
   eliminarTabla: (id: number) => http.delete(`/api/nomina/tablas/${id}`),
-  periodos: async (tipo: Periodicidad, ejercicio: number) => (await http.get<PeriodoNomina[]>('/api/nomina/periodos', { params: { tipo, ejercicio } })).data,
+  periodos: async (tipo: TipoPeriodo, ejercicio: number) => (await http.get<PeriodoNomina[]>('/api/nomina/periodos', { params: { tipo, ejercicio } })).data,
   generarPeriodos: async (d: { tipo: Periodicidad; ejercicio: number; primer_dia?: string }) =>
     (await http.post<{ message: string; nuevos: number }>('/api/nomina/periodos/generar', d)).data,
   fechaPago: (id: number, fecha_pago: string) => http.patch(`/api/nomina/periodos/${id}`, { fecha_pago }),
@@ -73,7 +73,7 @@ export const nominaApi = {
 /** v12: nómina del periodo, historial, sobre-recibos, reportes y respaldos. */
 export type FilaIncidencia = { empleado_id: number; faltas?: number; retardos?: number; domingos?: number; capturados?: Record<string, number>; notas?: string | null };
 export const nominaPeriodoApi = {
-  historial: async (ejercicio: number, tipo: Periodicidad) => (await http.get<PeriodoHistorial[]>('/api/nomina/historial', { params: { ejercicio, tipo } })).data,
+  historial: async (ejercicio: number, tipo: TipoPeriodo) => (await http.get<PeriodoHistorial[]>('/api/nomina/historial', { params: { ejercicio, tipo } })).data,
   captura: async (id: number) => (await http.get<Captura>(`/api/nomina/periodos/${id}/captura`)).data,
   incidencias: async (id: number, filas: FilaIncidencia[]) => (await http.put<Captura>(`/api/nomina/periodos/${id}/incidencias`, { filas })).data,
   calcular: async (id: number) => (await http.post<{ captura: Captura; avisos: string[] }>(`/api/nomina/periodos/${id}/calcular`)).data,
@@ -82,12 +82,35 @@ export const nominaPeriodoApi = {
   recibos: async (empleado_id: number) => (await http.get<ReciboLista[]>('/api/nomina/recibos', { params: { empleado_id } })).data,
   recibo: async (id: number) => (await http.get<Recibo>(`/api/nomina/recibos/${id}`)).data,
   listaDeRaya: async (periodoId: number) => (await http.get<ListaDeRaya>(`/api/nomina/reportes/lista-de-raya/${periodoId}`)).data,
-  acumulados: async (p: { ejercicio: number; tipo: Periodicidad; empleado_id?: number }) => (await http.get<Acumulados>('/api/nomina/reportes/acumulados', { params: limpiar(p) })).data,
+  acumulados: async (p: { ejercicio: number; tipo: TipoPeriodo; empleado_id?: number }) => (await http.get<Acumulados>('/api/nomina/reportes/acumulados', { params: limpiar(p) })).data,
   respaldos: async () => (await http.get<Respaldo[]>('/api/nomina/respaldos')).data,
   crearRespaldo: async (motivo: string) => (await http.post<Respaldo>('/api/nomina/respaldos', { motivo })).data,
   descargarRespaldo: (archivo: string) => descargarArchivo(`/api/nomina/respaldos/${archivo}`, archivo),
+  // v13
+  crearAguinaldo: async (ejercicio: number, fecha_pago: string) => (await http.post<PeriodoNomina>('/api/nomina/aguinaldo', { ejercicio, fecha_pago })).data,
+  pdf: (id: number, nombre: string) => descargarArchivo(`/api/nomina/recibos/${id}/pdf`, nombre),
+  pdfPeriodo: (id: number, nombre: string) => descargarArchivo(`/api/nomina/periodos/${id}/recibos-pdf`, nombre),
+  enviarRecibo: async (id: number) => (await http.post<{ estado: string; email?: string; error?: string }>(`/api/nomina/recibos/${id}/enviar`)).data,
+  enviarPeriodo: async (id: number) => (await http.post<ResultadoEnvio>(`/api/nomina/periodos/${id}/enviar-recibos`)).data,
+  envios: async (id: number) => (await http.get<EnviosPeriodo>(`/api/nomina/periodos/${id}/envios`)).data,
   reconstruir: async (ejercicio?: number) =>
     (await http.post<{ recibos: number; alterados: { recibo_id: number; empleado: string; periodo: string }[]; acumulados: number }>('/api/nomina/reconstruir', limpiar({ ejercicio }))).data,
+};
+
+/** v13: vacaciones del empleado y cálculo anual de ISR. */
+export const vacacionesApi = {
+  obtener: async (empleadoId: number) => (await http.get<SaldoVacaciones>(`/api/empleados/${empleadoId}/vacaciones`)).data,
+  registrar: async (empleadoId: number, d: { desde: string; hasta: string; dias: number; notas?: string }) =>
+    (await http.post<SaldoVacaciones>(`/api/empleados/${empleadoId}/vacaciones`, d)).data,
+  cancelar: async (id: number) => (await http.delete<SaldoVacaciones>(`/api/vacaciones/${id}`)).data,
+};
+export const ajusteAnualApi = {
+  obtener: async (ejercicio: number) => (await http.get<AjusteAnualRespuesta>('/api/nomina/ajuste-anual', { params: { ejercicio } })).data,
+  calcular: async (ejercicio: number) => (await http.post<AjusteAnualRespuesta>('/api/nomina/ajuste-anual/calcular', { ejercicio })).data,
+  declaracion: async (id: number, declara_por_su_cuenta: boolean) => (await http.patch<AjusteAnualRespuesta>(`/api/nomina/ajuste-anual/${id}`, { declara_por_su_cuenta })).data,
+  aplicar: async (ejercicio: number, periodo_id: number) =>
+    (await http.post<{ aplicados: number; fuera: string[]; periodo: string; ajuste: AjusteAnualRespuesta }>('/api/nomina/ajuste-anual/aplicar', { ejercicio, periodo_id })).data,
+  quitar: async (ejercicio: number) => (await http.post<AjusteAnualRespuesta>('/api/nomina/ajuste-anual/quitar', { ejercicio })).data,
 };
 
 export const indicadoresApi = {
