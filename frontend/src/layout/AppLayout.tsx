@@ -14,6 +14,7 @@ const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] =
   { a: '/nomina/historial', texto: 'Historial y recibos', icono: '🗂', permisos: ['nomina.ver'] },
   { a: '/nomina/reportes', texto: 'Reportes', icono: '📑', permisos: ['nomina.ver'] },
   { a: '/nomina/ajuste-anual', texto: 'Cálculo anual de ISR', icono: '🧾', permisos: ['nomina.ver'] },
+  { a: '/nomina/importar-xml', texto: 'Importar XML timbrados', icono: '🔖', permisos: ['nomina.timbrar'] },   // v14
   { a: '/indicadores', texto: 'Indicadores', icono: '📊', permisos: ['indicadores.ver'] },
   { a: '/nomina/configuracion', texto: 'Configuración de nómina', icono: '⚙', permisos: ['empleados.ver'] },
   { a: '/publicaciones', texto: 'Publicaciones', icono: '📣', permisos: ['publicaciones.ver'] },

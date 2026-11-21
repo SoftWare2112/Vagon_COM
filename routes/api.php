@@ -2,6 +2,7 @@
 
 use App\Enums\Permiso as P;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CfdiController;
 use App\Http\Controllers\Api\EmpleadoController;
 use App\Http\Controllers\Api\NominaConfigController;
 use App\Http\Controllers\Api\NominaController;
@@ -68,6 +69,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
             Route::get('nomina/periodos/{periodo}/recibos-pdf', [NominaController::class, 'pdfPeriodo']);
             Route::get('nomina/periodos/{periodo}/envios', [NominaController::class, 'envios']);
             Route::get('nomina/ajuste-anual', [AjusteAnualController::class, 'index']);
+            Route::get('nomina/recibos/{recibo}/xml', [CfdiController::class, 'xml']);   // v14
+        });
+        // v14: CFDI de nómina (timbrado opcional, CSD, PAC, cancelación e importación de XML)
+        Route::middleware('can:'.P::NominaTimbrar->value)->group(function () {
+            Route::get('nomina/cfdi/configuracion', [CfdiController::class, 'configuracion']);
+            Route::put('nomina/cfdi/configuracion', [CfdiController::class, 'guardarConfiguracion']);
+            Route::post('nomina/cfdi/csd', [CfdiController::class, 'cargarCsd']);
+            Route::post('nomina/cfdi/probar', [CfdiController::class, 'probar']);
+            Route::get('nomina/cfdi/recibos/{recibo}/validar', [CfdiController::class, 'validar']);
+            Route::post('nomina/cfdi/recibos/{recibo}/timbrar', [CfdiController::class, 'timbrarRecibo']);
+            Route::post('nomina/cfdi/recibos/{recibo}/cancelar', [CfdiController::class, 'cancelar']);
+            Route::post('nomina/cfdi/periodos/{periodo}/timbrar', [CfdiController::class, 'timbrarPeriodo']);
+            Route::post('nomina/cfdi/importar', [CfdiController::class, 'importar']);
+            Route::get('nomina/cfdi/eventos', [CfdiController::class, 'eventos']);
         });
         Route::middleware('can:'.P::NominaCalcular->value)->group(function () {
             Route::put('nomina/periodos/{periodo}/incidencias', [NominaController::class, 'incidencias']);

@@ -8,18 +8,21 @@ import { Aviso } from '../../components/Aviso';
 import { Modal } from '../../components/Modal';
 import type { ConceptoNomina, Empresa, Periodicidad, TablaFiscal } from '../../types';
 import { dinero, fecha, hoyISO, numero, PERIODICIDADES } from '../../utils/formato';
+import { TimbradoConfig } from '../cfdi/TimbradoConfig';
 
-type Pestana = 'empresa' | 'conceptos' | 'tablas' | 'periodos';
+type Pestana = 'empresa' | 'conceptos' | 'tablas' | 'periodos' | 'timbrado';
 const PESTANAS: { id: Pestana; texto: string }[] = [
   { id: 'empresa', texto: 'Empresa' }, { id: 'conceptos', texto: 'Percepciones y deducciones' },
   { id: 'tablas', texto: 'Tablas fiscales' }, { id: 'periodos', texto: 'Calendario de pagos' },
+  { id: 'timbrado', texto: 'Timbrado (CFDI)' },   // v14: solo con el permiso «nomina.timbrar»
 ];
 
 /** v11 — Configuración de nómina: datos patronales, conceptos con sus reglas, tablas del SAT/IMSS y calendario de periodos. */
 export function ConfiguracionPage() {
   const [params, setParams] = useSearchParams();
-  const pestana = (PESTANAS.find((p) => p.id === params.get('pestana'))?.id ?? 'empresa') as Pestana;
   const { puede } = useAuth();
+  const visibles = PESTANAS.filter((p) => p.id !== 'timbrado' || puede('nomina.timbrar'));
+  const pestana = (visibles.find((p) => p.id === params.get('pestana'))?.id ?? 'empresa') as Pestana;
   const edita = puede('nomina.configurar');
   return (
     <section>
@@ -30,7 +33,7 @@ export function ConfiguracionPage() {
         </div>
       </div>
       <div className="segmentado pestanas-config" role="tablist">
-        {PESTANAS.map((p) => (
+        {visibles.map((p) => (
           <button key={p.id} role="tab" aria-selected={pestana === p.id} className={pestana === p.id ? 'activo' : ''} onClick={() => setParams({ pestana: p.id }, { replace: true })}>{p.texto}</button>
         ))}
       </div>
@@ -38,6 +41,7 @@ export function ConfiguracionPage() {
       {pestana === 'conceptos' && <PestanaConceptos edita={edita} />}
       {pestana === 'tablas' && <PestanaTablas edita={edita} />}
       {pestana === 'periodos' && <PestanaPeriodos edita={edita} />}
+      {pestana === 'timbrado' && <TimbradoConfig edita={puede('nomina.timbrar')} />}
     </section>
   );
 }
@@ -73,13 +77,13 @@ function PestanaEmpresa({ edita }: { edita: boolean }) {
         </div>
         <p className="tenue">Se usarán en el recibo timbrado (CFDI de nómina). Escríbelos como en la Constancia de Situación Fiscal de la empresa.</p>
         <h2 className="seccion-titulo">Timbrado del recibo (CFDI)</h2>
-        <label className="interruptor">
-          <input type="checkbox" checked={!!d.timbrado_activo} onChange={(e) => set({ timbrado_activo: e.target.checked })} />
-          <span><strong>{d.timbrado_activo ? 'Timbrado activo' : 'Timbrado desactivado'}</strong>
-            <small className="tenue linea-sub">{d.timbrado_activo
-              ? 'Cada nómina autorizada queda «pendiente de timbrar». El envío al PAC (Proveedor Autorizado de Certificación) requiere el Certificado de Sello Digital de la empresa y llega en una versión posterior.'
-              : 'Las nóminas se calculan, autorizan y guardan en el historial sin folio fiscal. Puedes activarlo cuando RH lo decida; no cambia ningún cálculo.'}</small></span>
-        </label>
+        <p className="linea-timbrado">
+          <span className={`etiqueta ${d.timbrado_activo ? 'etiqueta-ok' : 'etiqueta-neutro'}`}>{d.timbrado_activo ? 'Activo' : 'Desactivado'}</span>{' '}
+          <span className="tenue">{d.timbrado_activo
+            ? 'Las nóminas autorizadas se timbran desde «Nómina del periodo».'
+            : 'Las nóminas se calculan, autorizan y guardan sin folio fiscal; no cambia ningún cálculo.'}
+            {' '}El CSD, el PAC y la activación están en la pestaña «Timbrado (CFDI)».</span>
+        </p>
         {err('timbrado_activo')}
         <h2 className="seccion-titulo">Reglas de cálculo</h2>
         <div className="rejilla-form">

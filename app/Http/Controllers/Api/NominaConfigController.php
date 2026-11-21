@@ -47,6 +47,11 @@ class NominaConfigController extends Controller
             'dias_aguinaldo.between' => 'El aguinaldo mínimo de ley es de 15 días.',
             'prima_vacacional.between' => 'La prima vacacional mínima de ley es del 25 %.',
         ]);
+        // v14: el timbrado se ACTIVA en Configuración > Timbrado (CFDI), donde se revisan el CSD y el PAC.
+        // Desde aquí solo se puede desactivar.
+        if (! empty($d['timbrado_activo']) && ! Empresa::actual()->timbrado_activo) {
+            throw ValidationException::withMessages(['timbrado_activo' => 'El timbrado se activa en la pestaña «Timbrado (CFDI)», después de cargar el CSD.']);
+        }
         if (! empty($d['timbrado_activo'])) {
             $faltan = array_filter(['rfc' => 'RFC', 'regimen_fiscal' => 'régimen fiscal', 'codigo_postal' => 'código postal', 'registro_patronal' => 'registro patronal'],
                 fn ($c) => empty($d[$c]), ARRAY_FILTER_USE_KEY);

@@ -16,6 +16,7 @@ import { HistorialPage } from './features/nomina/HistorialPage';
 import { RecibosPage } from './features/nomina/RecibosPage';
 import { ReportesPage } from './features/nomina/ReportesPage';
 import { AjusteAnualPage } from './features/nomina/AjusteAnualPage';
+import { ImportarXmlPage } from './features/cfdi/ImportarXmlPage';
 import { IndicadoresPage } from './features/indicadores/IndicadoresPage';
 import { PublicacionesPage } from './features/publicaciones/PublicacionesPage';
 import { PublicacionPage } from './features/publicaciones/PublicacionPage';
@@ -51,6 +52,8 @@ export default function App() {
               <Route path="nomina/reportes" element={<ReportesPage />} />
               <Route path="nomina/ajuste-anual" element={<AjusteAnualPage />} />
             </Route>
+            {/* v14: importación de los XML timbrados por el departamento de nóminas */}
+            <Route element={<Protegida permiso="nomina.timbrar" />}><Route path="nomina/importar-xml" element={<ImportarXmlPage />} /></Route>
             <Route element={<Protegida permiso="indicadores.ver" />}><Route path="indicadores" element={<IndicadoresPage />} /></Route>
             {/* v10: Publicaciones */}
             <Route element={<Protegida permiso="publicaciones.ver" />}>

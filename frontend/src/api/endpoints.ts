@@ -2,6 +2,7 @@ import { http, csrf } from './http';
 import type {
   Acumulados, AjusteAnualRespuesta, EnviosPeriodo, ResultadoEnvio, SaldoVacaciones, TipoPeriodo, Alerta, CalculoNomina, Captura, ConceptoNomina, IndicadoresRespuesta, ListaDeRaya, PeriodoHistorial, Recibo, ReciboLista, Respaldo, DatosEmpleado, DatosPublicacion, Empleado, EmpleadoResumen, Empresa, FiltrosPublicaciones,
   Paginado, PeriodoNomina, Periodicidad, Permiso, Publicacion, RolesRespuesta, TablaFiscal, TipoContrato, Usuario,
+  EstadoTimbrado, EventoCfdi, ModoCfdi, ResultadoImportacion, ResultadoTimbradoPeriodo,
 } from '../types';
 
 /** Capa de servicios: los componentes nunca escriben URLs directamente. */
@@ -95,6 +96,34 @@ export const nominaPeriodoApi = {
   envios: async (id: number) => (await http.get<EnviosPeriodo>(`/api/nomina/periodos/${id}/envios`)).data,
   reconstruir: async (ejercicio?: number) =>
     (await http.post<{ recibos: number; alterados: { recibo_id: number; empleado: string; periodo: string }[]; acumulados: number }>('/api/nomina/reconstruir', limpiar({ ejercicio }))).data,
+};
+
+/** v14: CFDI de nómina (timbrado opcional, CSD, PAC, cancelación, XML e importación). */
+export const cfdiApi = {
+  configuracion: async () => (await http.get<EstadoTimbrado>('/api/nomina/cfdi/configuracion')).data,
+  guardar: async (d: Record<string, unknown>) => (await http.put<EstadoTimbrado>('/api/nomina/cfdi/configuracion', d)).data,
+  cargarCsd: async (cer: File, key: File, password: string) => {
+    const fd = new FormData();
+    fd.append('cer', cer); fd.append('key', key); fd.append('password', password);
+    return (await http.post<{ csd: unknown; estado: EstadoTimbrado }>('/api/nomina/cfdi/csd', fd)).data;
+  },
+  probar: async () => (await http.post<{ ok: boolean; mensaje: string }>('/api/nomina/cfdi/probar')).data,
+  validar: async (reciboId: number) => (await http.get<{ listo: boolean; errores: string[] }>(`/api/nomina/cfdi/recibos/${reciboId}/validar`)).data,
+  timbrarRecibo: async (reciboId: number) => (await http.post<{ recibo_id: number; uuid: string; modo: ModoCfdi; total: number }>(`/api/nomina/cfdi/recibos/${reciboId}/timbrar`, {}, { timeout: 120_000 })).data,
+  timbrarPeriodo: async (periodoId: number) => (await http.post<ResultadoTimbradoPeriodo>(`/api/nomina/cfdi/periodos/${periodoId}/timbrar`, {}, { timeout: 600_000 })).data,
+  cancelar: async (reciboId: number, motivo: string, folio_sustitucion?: string) =>
+    (await http.post<{ uuid: string; estado: string; mensaje: string }>(`/api/nomina/cfdi/recibos/${reciboId}/cancelar`, limpiar({ motivo, folio_sustitucion }), { timeout: 120_000 })).data,
+  xml: (reciboId: number, nombre: string) => descargarArchivo(`/api/nomina/recibos/${reciboId}/xml`, nombre),
+  importar: async (archivos: File[], aplicar: boolean, forzar: string[] = [], onProgreso?: (pct: number) => void) => {
+    const fd = new FormData();
+    archivos.forEach((a) => fd.append('archivos[]', a));
+    fd.append('aplicar', aplicar ? '1' : '0');
+    forzar.forEach((u) => fd.append('forzar[]', u));
+    return (await http.post<ResultadoImportacion>('/api/nomina/cfdi/importar', fd, {
+      timeout: 600_000, onUploadProgress: (e) => e.total && onProgreso?.(Math.round((e.loaded / e.total) * 100)),
+    })).data;
+  },
+  eventos: async (p: { recibo_id?: number; tipo?: string } = {}) => (await http.get<EventoCfdi[]>('/api/nomina/cfdi/eventos', { params: limpiar(p) })).data,
 };
 
 /** v13: vacaciones del empleado y cálculo anual de ISR. */

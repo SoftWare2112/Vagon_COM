@@ -42,6 +42,8 @@ enum Permiso: string
     case NominaCalcular = 'nomina.calcular';
     case NominaAutorizar = 'nomina.autorizar';
     case IndicadoresVer = 'indicadores.ver';
+    // v14: CFDI de nómina
+    case NominaTimbrar = 'nomina.timbrar';
 
     /**
      * v11: permisos de los módulos retirados (incidencias por Excel, hojas de cálculo, informes de cargas).
@@ -90,6 +92,7 @@ enum Permiso: string
             self::NominaCalcular => 'Capturar incidencias del periodo y calcular la pre-nómina',
             self::NominaAutorizar => 'Autorizar (cerrar) la nómina, reabrir la última sin timbrar y crear respaldos',
             self::IndicadoresVer => 'Ver las gráficas de indicadores (faltas, bonos, domingos, altas y bajas)',
+            self::NominaTimbrar => 'Timbrar y cancelar CFDI de nómina, cargar el CSD e importar los XML timbrados por el departamento de nóminas',
         };
     }
 

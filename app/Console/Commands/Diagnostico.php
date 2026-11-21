@@ -83,6 +83,22 @@ class Diagnostico extends Command
             $this->check(DB::table('tablas_fiscales')->where('tipo', 'isr_anual')->exists(), 'Tarifa anual de ISR (cálculo anual)', 'Ejecuta: php artisan migrate');
         }
 
+        $this->seccion('CFDI de nómina (v14, opcional)');
+        foreach (['openssl' => 'sellar el XML con el CSD', 'dom' => 'armar y leer los XML', 'zip' => 'importar XML en un ZIP', 'curl' => 'conectarse al PAC'] as $ext => $para) {
+            $this->check(extension_loaded($ext), "Extensión PHP {$ext} (para {$para})", "Habilita extension={$ext} en php.ini y reinicia Apache");
+        }
+        if (Schema::hasColumn('empresas', 'pac')) {
+            $emp = \App\Models\Empresa::query()->orderBy('id')->first();
+            if ($emp?->timbrado_activo) {
+                $this->check((bool) $emp->csd_vigente_hasta?->isFuture(), 'CSD vigente'.($emp->csd_vigente_hasta ? ' hasta '.$emp->csd_vigente_hasta->format('d/m/Y') : ''),
+                    'Carga un CSD vigente en Configuración > Timbrado (CFDI)');
+                $this->check($emp->pac !== 'simulado', 'Proveedor de timbrado: '.($emp->pac === 'sw' ? 'SW Sapien ('.$emp->pac_modo.')' : 'PAC simulado (sin validez fiscal)'),
+                    'Con el PAC simulado los recibos NO son CFDI reales; para timbrar de verdad contrata un PAC y cámbialo en Configuración > Timbrado');
+            } else {
+                $this->check(true, 'Timbrado desactivado (RH decidió no usarlo; el departamento de nóminas puede importar sus XML)');
+            }
+        }
+
         $this->seccion('Sesión y Sanctum (inicio de sesión desde React)');
         $this->check(config('session.driver') === 'database' ? Schema::hasTable('sessions') : true, 'SESSION_DRIVER = '.config('session.driver'));
         $front = parse_url((string) config('app.frontend_url'));

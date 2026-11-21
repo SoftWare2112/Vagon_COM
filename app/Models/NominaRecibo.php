@@ -16,14 +16,15 @@ class NominaRecibo extends Model
 
     protected $fillable = ['empresa_id', 'periodo_id', 'empleado_id', 'ejercicio', 'estado', 'numero_empleado', 'nombre', 'rfc', 'curp', 'nss', 'puesto',
         'salario_mensual', 'salario_diario', 'sdi', 'sbc', 'dias_pagados', 'faltas', 'retardos', 'domingos', 'percepciones', 'gravado', 'exento',
-        'deducciones', 'isr_retenido', 'subsidio_causado', 'subsidio_aplicado', 'imss', 'neto', 'detalle', 'huella', 'uuid', 'timbrado_at'];
+        'deducciones', 'isr_retenido', 'subsidio_causado', 'subsidio_aplicado', 'imss', 'neto', 'detalle', 'huella', 'uuid', 'timbrado_at',
+        'cfdi_modo', 'cfdi_xml_path', 'cfdi_total'];   // v14
 
     protected function casts(): array
     {
         $dinero = array_fill_keys(['salario_mensual', 'salario_diario', 'sdi', 'sbc', 'percepciones', 'gravado', 'exento', 'deducciones',
             'isr_retenido', 'subsidio_causado', 'subsidio_aplicado', 'imss', 'neto'], 'float');
 
-        return [...$dinero, 'detalle' => 'array', 'timbrado_at' => 'datetime'];
+        return [...$dinero, 'detalle' => 'array', 'timbrado_at' => 'datetime', 'cfdi_total' => 'float'];
     }
 
     protected static function booted(): void

@@ -9,6 +9,7 @@ import { Modal } from '../../components/Modal';
 import type { Captura, FilaCaptura, PeriodoNomina, ResultadoEnvio, TipoPeriodo } from '../../types';
 import { dinero, fecha, hoyISO, TIPOS_PERIODO } from '../../utils/formato';
 import { EstadoPeriodo, ReciboModal } from './piezas';
+import { DialogoTimbrarPeriodo, EtiquetaCfdi } from '../cfdi/piezasCfdi';
 
 type Cambios = Record<number, FilaIncidencia>;
 
@@ -49,7 +50,7 @@ export function NominaPage() {
   const [mensaje, setMensaje] = useState<{ tipo: 'exito' | 'error' | 'info'; texto: string } | null>(null);
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const [recibo, setRecibo] = useState<number | null>(null);
-  const [dialogo, setDialogo] = useState<'autorizar' | 'reabrir' | 'enviar' | null>(null);
+  const [dialogo, setDialogo] = useState<'autorizar' | 'reabrir' | 'enviar' | 'timbrar' | null>(null);
   useEffect(() => { setCambios({}); setAvisos([]); setMensaje(null); }, [periodoId]);
 
   const elegir = (id: number) => setParams({ periodo: String(id) }, { replace: true });
@@ -71,6 +72,7 @@ export function NominaPage() {
 
   const autorizado = captura?.periodo.estado === 'autorizado';
   const especial = captura?.periodo.tipo === 'especial';
+  const sinTimbrar = captura?.filas.filter((f) => f.recibo && f.recibo.estado === 'autorizado' && !f.recibo.uuid).length ?? 0;   // v14
   const editable = !!captura && !autorizado && !especial && puede('nomina.calcular');
   const conVacaciones = !!captura?.filas.some((f) => f.vacaciones > 0);
   const pendientes = Object.keys(cambios).length;
@@ -160,6 +162,7 @@ export function NominaPage() {
             {captura.totales && <button className="btn btn-sec" onClick={() => void nominaPeriodoApi.pdfPeriodo(captura.periodo.id, `recibos-${captura.periodo.ejercicio}-${especial ? 'aguinaldo' : String(captura.periodo.numero).padStart(2, '0')}.pdf`)
               .catch((e) => setMensaje({ tipo: 'error', texto: mensajeDeError(e) }))}>Recibos en PDF</button>}
             {autorizado && puede('nomina.autorizar') && <button className="btn btn-sec" onClick={() => setDialogo('enviar')}>Enviar recibos por correo…</button>}
+            {autorizado && captura.timbrado_activo && puede('nomina.timbrar') && sinTimbrar > 0 && <button className="btn" onClick={() => setDialogo('timbrar')}>Timbrar {sinTimbrar} recibo(s)…</button>}
           </div>
 
           {captura.totales && (
@@ -216,7 +219,7 @@ export function NominaPage() {
                             <td className={`num ${desactualizado ? 'tenue' : ''}`}>{dinero(f.recibo.percepciones)}</td>
                             <td className={`num ${desactualizado ? 'tenue' : ''}`}>{dinero(f.recibo.deducciones)}</td>
                             <td className={`num neto ${desactualizado ? 'tenue' : ''}`}>{dinero(f.recibo.neto)}{f.recibo.avisos.length > 0 && <span className="marca-aviso" title={f.recibo.avisos.join('\n')}> ⚠</span>}</td>
-                            <td className="acciones"><button className="btn btn-sec btn-sm" onClick={() => setRecibo(f.recibo!.id)}>Recibo</button></td>
+                            <td className="acciones">{f.recibo.uuid && <EtiquetaCfdi modo={f.recibo.cfdi_modo} />} <button className="btn btn-sec btn-sm" onClick={() => setRecibo(f.recibo!.id)}>Recibo</button></td>
                           </> : <td colSpan={4} className="tenue">Sin calcular</td>)}
                         </tr>
                       );
@@ -234,6 +237,8 @@ export function NominaPage() {
       {dialogo === 'autorizar' && captura && <DialogoAutorizar captura={captura} onCerrar={() => setDialogo(null)}
         onListo={(c, texto) => { actualizar(c); setDialogo(null); setMensaje({ tipo: 'exito', texto }); }} />}
       {dialogo === 'enviar' && captura && <DialogoEnviar periodo={captura.periodo} onCerrar={() => setDialogo(null)} />}
+      {dialogo === 'timbrar' && captura && <DialogoTimbrarPeriodo periodo={captura.periodo} onCerrar={() => setDialogo(null)}
+        onListo={() => void qc.invalidateQueries({ queryKey: ['captura', captura.periodo.id] })} />}
       {dialogo === 'reabrir' && captura && <DialogoReabrir periodo={captura.periodo} onCerrar={() => setDialogo(null)}
         onListo={(c, texto) => { actualizar(c); setDialogo(null); setMensaje({ tipo: 'info', texto }); }} />}
     </section>
@@ -311,7 +316,7 @@ function DialogoAutorizar({ captura, onCerrar, onListo }: { captura: Captura; on
         {respaldo.estado === 'error' && <Aviso tipo="advertencia">No se pudo crear el respaldo: {respaldo.texto} Puedes autorizar de todos modos.</Aviso>}
       </div>
       <p className="tenue">{captura.timbrado_activo
-        ? 'El timbrado está activo: los recibos quedarán «pendientes de timbrar» (el envío al PAC llega en una versión posterior).'
+        ? 'El timbrado está activo: después de autorizar aparece el botón «Timbrar recibos».'
         : 'El timbrado está desactivado en Configuración de nómina: los recibos se guardan sin folio fiscal (UUID).'}</p>
       <label className="check"><input type="checkbox" checked={revisado} onChange={(e) => setRevisado(e.target.checked)} /> Revisé la pre-nómina y los importes son correctos</label>
     </Modal>

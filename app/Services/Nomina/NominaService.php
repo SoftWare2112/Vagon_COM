@@ -297,7 +297,10 @@ class NominaService
             'periodo' => $this->periodoJson($r->periodo),
             'calculo' => $r->detalle,
             'cfdi' => ['activo' => $timbrado, 'uuid' => $r->uuid, 'timbrado_at' => $r->timbrado_at?->format('d/m/Y H:i'),
-                'estado' => $r->uuid ? 'timbrado' : ($timbrado ? ($r->estado === 'autorizado' ? 'pendiente' : 'no_aplica') : 'desactivado')],
+                'estado' => $r->uuid ? ($r->cfdi_modo === 'simulado' ? 'simulado' : 'timbrado') : ($timbrado ? ($r->estado === 'autorizado' ? 'pendiente' : 'no_aplica') : 'desactivado'),
+                // v14: modo del timbre (simulado | pruebas | produccion | importado), XML disponible y datos del Timbre Fiscal Digital
+                'modo' => $r->cfdi_modo, 'xml' => (bool) $r->cfdi_xml_path, 'total' => $r->cfdi_total,
+                'timbre' => $r->uuid ? app(\App\Services\Cfdi\TimbradoService::class)->datosTimbre($r) : null],
             'integridad' => $r->estado === 'autorizado' ? ($r->huella === Huella::de($this->fotografia($r)) ? 'ok' : 'alterado') : null,
         ];
     }
@@ -401,7 +404,7 @@ class NominaService
     private function resumen(NominaRecibo $r): array
     {
         return ['id' => $r->id, 'estado' => $r->estado, 'dias_pagados' => $r->dias_pagados, 'percepciones' => $r->percepciones,
-            'deducciones' => $r->deducciones, 'isr' => $r->isr_retenido, 'imss' => $r->imss, 'neto' => $r->neto, 'uuid' => $r->uuid,
+            'deducciones' => $r->deducciones, 'isr' => $r->isr_retenido, 'imss' => $r->imss, 'neto' => $r->neto, 'uuid' => $r->uuid, 'cfdi_modo' => $r->cfdi_modo,
             'avisos' => $r->detalle['avisos'] ?? []];
     }
 }

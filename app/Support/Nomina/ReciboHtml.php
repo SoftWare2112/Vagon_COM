@@ -6,6 +6,8 @@ namespace App\Support\Nomina;
  * v13 — HTML del recibo de nómina para convertirlo a PDF (dompdf) o enviarlo por correo. Lógica pura.
  * Usa solo tablas y estilos en línea (dompdf no entiende flex/grid) y la fuente DejaVu Sans para los acentos.
  * Si el recibo no está timbrado, lo dice: no es un CFDI.
+ * v14: si está timbrado agrega los datos del Timbre Fiscal Digital (representación impresa del CFDI) y, si el timbre
+ * es simulado o del ambiente de pruebas del PAC, lo advierte con letras grandes: no tiene validez fiscal.
  */
 final class ReciboHtml
 {
@@ -33,7 +35,7 @@ final class ReciboHtml
         $otros = array_values(array_filter($c['otros_pagos'] ?? [], fn ($o) => (float) $o['importe'] > 0));
 
         $cfdi = $r['cfdi']['uuid']
-            ? '<b>Folio fiscal (UUID):</b> '.$e($r['cfdi']['uuid']).' · Timbrado: '.$e($r['cfdi']['timbrado_at'])
+            ? self::timbre($r['cfdi'], $e)
             : '<b>Este documento no es un Comprobante Fiscal Digital por Internet (CFDI).</b> Es un comprobante interno del pago.';
 
         $datosEmpresa = array_filter([$empresa['rfc'] ?? null ? 'RFC '.$e($empresa['rfc']) : null,
@@ -60,11 +62,48 @@ final class ReciboHtml
             .($otros ? '<table class="lineas otros"><tr><th>SAT</th><th>Otros pagos</th><th class="num">Importe</th></tr>'.$filas($otros).'</table>' : '')
             .'</td></tr></table>'
             .'<table class="neto"><tr><td>NETO A PAGAR<div class="letra">'.$e(ImporteConLetra::pesos((float) $c['totales']['neto'])).'</div></td><td class="num grande">'.$m($c['totales']['neto']).'</td></tr></table>'
-            .'<p class="fiscal">'.$cfdi.'</p>'
+            .'<div class="fiscal">'.$cfdi.'</div>'
             .'<table class="firma"><tr><td>Recibí de '.$e($empresa['razon_social'] ?: $empresa['nombre']).' la cantidad neta indicada, que cubre los conceptos de este recibo por el periodo señalado.</td>'
             .'<td class="linea"><div>&nbsp;</div><div class="raya">'.$e($r['nombre']).'</div></td></tr></table>'
             .'<p class="pie">Folio interno R-'.str_pad((string) $r['id'], 6, '0', STR_PAD_LEFT).($r['estado'] === 'autorizado' ? ' · autorizado' : ' · PRE-NÓMINA (no autorizado)').'</p>'
             .'</div>';
+    }
+
+    /** v14: bloque fiscal de un recibo timbrado. */
+    private static function timbre(array $cfdi, callable $e): string
+    {
+        $t = $cfdi['timbre'] ?? null;
+        if (! $t) {
+            return '<b>Folio fiscal (UUID):</b> '.$e($cfdi['uuid']).' · Timbrado: '.$e($cfdi['timbrado_at']);
+        }
+        $aviso = match ($t['modo'] ?? null) {
+            'simulado' => '<div class="aviso">TIMBRE SIMULADO — SIN VALIDEZ FISCAL. Documento de prueba generado por la plataforma; no existe en el SAT.</div>',
+            'pruebas' => '<div class="aviso">TIMBRADO EN EL AMBIENTE DE PRUEBAS DEL PAC — SIN VALIDEZ FISCAL.</div>',
+            default => '',
+        };
+        $qr = '';
+        if (empty($t['simulado']) && class_exists(\chillerlan\QRCode\QRCode::class)) {
+            try {
+                $qr = '<img class="qr" src="'.(new \chillerlan\QRCode\QRCode)->render($t['url_verificacion']).'" alt="QR">';
+            } catch (\Throwable) {
+                $qr = '';
+            }
+        }
+        $sello = fn (?string $s) => '<div class="sello">'.$e(chunk_split((string) $s, 110, ' ')).'</div>';
+
+        return $aviso
+            .'<table class="tfd"><tr>'.($qr ? '<td class="qrcol">'.$qr.'</td>' : '').'<td>'
+            .'<b>Este documento es una representación impresa de un CFDI de nómina.</b><br>'
+            .'<b>Folio fiscal (UUID):</b> '.$e($t['uuid']).' · <b>Serie y folio:</b> '.$e(trim(($t['serie'] ?? '').'-'.($t['folio'] ?? ''), '-'))
+            .' · <b>Fecha de certificación:</b> '.$e(str_replace('T', ' ', (string) $t['fecha_timbrado'])).'<br>'
+            .'<b>No. certificado del emisor:</b> '.$e($t['no_certificado_emisor']).' · <b>No. certificado del SAT:</b> '.$e($t['no_certificado_sat'])
+            .' · <b>RFC del proveedor de certificación:</b> '.$e($t['rfc_prov_certif']).'<br>'
+            .'<b>Uso CFDI:</b> CN01 Nómina · <b>Método de pago:</b> PUE · <b>Régimen del receptor:</b> 605 Sueldos y salarios'
+            .'</td></tr></table>'
+            .'<div class="et2">Sello digital del CFDI</div>'.$sello($t['sello_cfd'])
+            .'<div class="et2">Sello del SAT</div>'.$sello($t['sello_sat'])
+            .'<div class="et2">Cadena original del complemento de certificación digital del SAT</div>'.$sello($t['cadena_tfd'])
+            .(empty($t['simulado']) ? '<div class="et2">Verificación: '.$e($t['url_verificacion']).'</div>' : '');
     }
 
     private static function css(): string
@@ -79,6 +118,10 @@ final class ReciboHtml
             .'.otros{margin-top:8px}.neto{margin-top:10px;background:#e8f4ec}.neto td{padding:8px 10px;font-weight:bold}.grande{font-size:14pt;color:#1e6b3a}'
             .'.letra{font-weight:normal;font-size:7.5pt;margin-top:2px}.fiscal{font-size:7.5pt;margin:8px 0;padding:6px;border:1px solid #d5d9de}'
             .'.firma{margin-top:22px}.firma td{font-size:8pt}.firma .linea{width:42%;text-align:center}.raya{border-top:1px solid #1d2228;padding-top:3px;margin-top:28px}'
-            .'.pie{font-size:7pt;color:#8a929c;text-align:right;margin-top:10px}';
+            .'.pie{font-size:7pt;color:#8a929c;text-align:right;margin-top:10px}'
+            // v14: timbre fiscal
+            .'.aviso{font-size:10pt;font-weight:bold;color:#9b1c1c;border:2px solid #9b1c1c;padding:5px;text-align:center;margin-bottom:6px}'
+            .'.tfd td{padding:0 4px 4px 0;font-size:7pt}.qrcol{width:92px}.qr{width:88px;height:88px}.et2{font-size:6.5pt;font-weight:bold;margin-top:3px}'
+            .'.sello{font-size:5.5pt;color:#3b424b;word-wrap:break-word;line-height:1.25}';
     }
 }

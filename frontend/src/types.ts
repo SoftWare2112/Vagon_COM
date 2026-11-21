@@ -2,7 +2,8 @@ export type Permiso =
   | 'usuarios.gestionar'
   | 'publicaciones.ver' | 'publicaciones.crear' | 'publicaciones.moderar'
   | 'empleados.ver' | 'empleados.gestionar' | 'nomina.configurar'
-  | 'nomina.ver' | 'nomina.calcular' | 'nomina.autorizar' | 'indicadores.ver';   // v12
+  | 'nomina.ver' | 'nomina.calcular' | 'nomina.autorizar' | 'indicadores.ver'   // v12
+  | 'nomina.timbrar';   // v14
 
 export interface Usuario {
   id: number;
@@ -109,7 +110,7 @@ export interface PeriodoNomina { id: number; tipo: TipoPeriodo; clase?: 'ordinar
   calculado_at?: string | null; autorizado_at?: string | null; autorizado_por?: string | null }
 
 // ───────────────────────── v12: nómina del periodo ─────────────────────────
-export interface ReciboResumen { id: number; estado: 'borrador' | 'autorizado'; dias_pagados: number; percepciones: number; deducciones: number; isr: number; imss: number; neto: number; uuid: string | null; avisos: string[] }
+export interface ReciboResumen { id: number; estado: 'borrador' | 'autorizado'; dias_pagados: number; percepciones: number; deducciones: number; isr: number; imss: number; neto: number; uuid: string | null; avisos: string[]; cfdi_modo?: ModoCfdi | null }
 export interface FilaCaptura {
   empleado_id: number; numero_empleado: string; nombre: string; puesto: string | null; dias_fuera: number;
   faltas: number; retardos: number; domingos: number; capturados: Record<string, number>; notas: string | null; recibo: ReciboResumen | null;
@@ -126,7 +127,8 @@ export interface Recibo extends ReciboResumen {
   empleado_id: number; numero_empleado: string; nombre: string; rfc: string | null; curp: string | null; nss: string | null; puesto: string | null;
   salario_mensual: number; salario_diario: number; sdi: number; sbc: number; faltas: number; retardos: number; domingos: number;
   periodo: PeriodoNomina; calculo: Omit<CalculoNomina, 'periodo'>;
-  cfdi: { activo: boolean; uuid: string | null; timbrado_at: string | null; estado: 'timbrado' | 'pendiente' | 'desactivado' | 'no_aplica' };
+  cfdi: { activo: boolean; uuid: string | null; timbrado_at: string | null; estado: 'timbrado' | 'simulado' | 'pendiente' | 'desactivado' | 'no_aplica';
+    modo?: ModoCfdi | null; xml?: boolean; total?: number | null; timbre?: TimbreCfdi | null };   // v14
   integridad: 'ok' | 'alterado' | null;
 }
 export interface ListaDeRaya {
@@ -200,3 +202,39 @@ export interface AjusteAnualRespuesta {
 }
 export interface ResultadoEnvio { enviados: number; sin_correo: string[]; errores: string[] }
 export type EnviosPeriodo = Record<string, { email: string; estado: 'enviado' | 'error'; error: string | null; fecha: string }>;
+
+// ───────────────────────── v14: CFDI de nómina ─────────────────────────
+export type ModoCfdi = 'simulado' | 'pruebas' | 'produccion' | 'importado';
+export interface TimbreCfdi {
+  uuid: string; fecha_timbrado: string; rfc_prov_certif: string; no_certificado_emisor: string | null; no_certificado_sat: string;
+  sello_cfd: string; sello_sat: string; cadena_tfd: string; leyenda: string | null; simulado: boolean; pruebas: boolean;
+  url_verificacion: string; serie: string | null; folio: string | null; total: number; modo: ModoCfdi | null;
+}
+export interface EstadoTimbrado {
+  timbrado_activo: boolean;
+  empresa: { rfc: string | null; razon_social: string | null; regimen_fiscal: string | null; codigo_postal: string | null; registro_patronal: string | null;
+    curp: string | null; clave_ent_fed: string | null; riesgo_puesto: string; tipo_jornada: string; serie_cfdi: string | null };
+  pac: { proveedor: 'simulado' | 'sw'; modo: 'pruebas' | 'produccion'; usuario: string | null; tiene_password: boolean; nombre: string; modo_timbre: ModoCfdi };
+  csd: { no_certificado: string; rfc: string; vigente_desde: string; vigente_hasta: string; vigente: boolean; dias_restantes: number | null } | null;
+  revision: { clave: string; ok: boolean; texto: string }[];
+  listo: boolean;
+  catalogos: { estados: Record<string, string>; jornadas: Record<string, string>; riesgos: Record<string, string>; motivos_cancelacion: Record<string, string> };
+  resumen: { timbrados: Partial<Record<ModoCfdi, number>>; pendientes: number };
+}
+export interface ResultadoTimbradoPeriodo {
+  timbrados: number; errores: number;
+  resultados: ({ ok: true; recibo_id: number; nombre: string; uuid: string; modo: ModoCfdi; total: number } | { ok: false; recibo_id: number; nombre: string; error: string; errores: string[] })[];
+}
+export type EstadoImportacion = 'listo' | 'ligado' | 'diferencia' | 'ya_ligado' | 'conflicto' | 'uuid_en_otro' | 'sin_recibo' | 'emisor_distinto'
+  | 'no_es_nomina' | 'sin_timbre' | 'invalido' | 'repetido';
+export interface FilaImportacion {
+  archivo: string; estado: EstadoImportacion; mensaje: string | null; uuid: string | null; receptor: string | null; rfc: string | null;
+  fecha_pago: string | null; tipo_nomina: 'O' | 'E' | null; total: number | null;
+  recibo: { id: number; nombre: string; numero_empleado: string; periodo: string | null; periodo_id: number; neto: number; uuid: string | null } | null;
+  diferencias: { concepto: string; recibo: number; xml: number; diferencia: number }[];
+}
+export interface ResultadoImportacion { aplicado: boolean; total: number; conteo: Partial<Record<EstadoImportacion, number>>; estados: Record<EstadoImportacion, string>; filas: FilaImportacion[] }
+export interface EventoCfdi {
+  id: number; tipo: 'timbrado' | 'error' | 'cancelacion' | 'importacion' | 'csd' | 'prueba'; uuid: string | null; modo: ModoCfdi | null; mensaje: string;
+  datos: Record<string, unknown> | null; fecha: string; usuario: string | null; recibo: { id: number; nombre: string; numero_empleado: string } | null;
+}
