@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { authApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { Aviso } from '../../components/Aviso';
+import { PantallaAuth } from './PantallaAuth';
 
 export function OlvidePage() {
   const [email, setEmail] = useState('');
@@ -18,15 +19,15 @@ export function OlvidePage() {
   };
 
   return (
-    <div className="pantalla-auth">
+    <PantallaAuth>
       <form className="tarjeta-auth" onSubmit={enviar}>
         <h1>Recuperar cuenta</h1>
         <p className="tenue">Te enviaremos un enlace (válido 60 minutos) para crear una nueva contraseña. También desbloquea tu cuenta.</p>
         {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
         <label>Correo<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <button className="btn btn-bloque" disabled={enviando}>Enviar enlace</button>
-        <Link to="/login" className="enlace-centro">Volver</Link>
+        <Link to="/login" className="auth-enlace enlace-centro">Volver</Link>
       </form>
-    </div>
+    </PantallaAuth>
   );
 }

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Logo } from '../features/auth/PantallaAuth';
+import { Icono, type NombreIcono } from '../components/Icono';
 import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { publicacionesApi } from '../api/endpoints';
@@ -7,18 +9,18 @@ import { useOnline } from '../hooks/useOnline';
 import type { Permiso } from '../types';
 
 // Cada opción se ve si el usuario tiene AL MENOS uno de sus permisos (vacío = todos)
-const MENU: { a: string; texto: string; icono: string; permisos: Permiso[] }[] = [
-  { a: '/', texto: 'Inicio', icono: '⌂', permisos: [] },
-  { a: '/empleados', texto: 'Empleados', icono: '👥', permisos: ['empleados.ver'] },
-  { a: '/nomina', texto: 'Nómina del periodo', icono: '🧮', permisos: ['nomina.ver', 'nomina.calcular'] },
-  { a: '/nomina/historial', texto: 'Historial y recibos', icono: '🗂', permisos: ['nomina.ver'] },
-  { a: '/nomina/reportes', texto: 'Reportes', icono: '📑', permisos: ['nomina.ver'] },
-  { a: '/nomina/ajuste-anual', texto: 'Cálculo anual de ISR', icono: '🧾', permisos: ['nomina.ver'] },
-  { a: '/nomina/importar-xml', texto: 'Importar XML timbrados', icono: '🔖', permisos: ['nomina.timbrar'] },   // v14
-  { a: '/indicadores', texto: 'Indicadores', icono: '📊', permisos: ['indicadores.ver'] },
-  { a: '/nomina/configuracion', texto: 'Configuración de nómina', icono: '⚙', permisos: ['empleados.ver'] },
-  { a: '/publicaciones', texto: 'Publicaciones', icono: '📣', permisos: ['publicaciones.ver'] },
-  { a: '/usuarios', texto: 'Usuarios y roles', icono: '🔐', permisos: ['usuarios.gestionar'] },
+const MENU: { a: string; texto: string; icono: NombreIcono; permisos: Permiso[] }[] = [
+  { a: '/', texto: 'Inicio', icono: 'inicio', permisos: [] },
+  { a: '/empleados', texto: 'Empleados', icono: 'empleados', permisos: ['empleados.ver'] },
+  { a: '/nomina', texto: 'Nómina del periodo', icono: 'nomina', permisos: ['nomina.ver', 'nomina.calcular'] },
+  { a: '/nomina/historial', texto: 'Historial y recibos', icono: 'historial', permisos: ['nomina.ver'] },
+  { a: '/nomina/reportes', texto: 'Reportes', icono: 'reportes', permisos: ['nomina.ver'] },
+  { a: '/nomina/ajuste-anual', texto: 'Cálculo anual de ISR', icono: 'anual', permisos: ['nomina.ver'] },
+  { a: '/nomina/importar-xml', texto: 'Importar XML timbrados', icono: 'xml', permisos: ['nomina.timbrar'] },   // v14
+  { a: '/indicadores', texto: 'Indicadores', icono: 'indicadores', permisos: ['indicadores.ver'] },
+  { a: '/nomina/configuracion', texto: 'Configuración de nómina', icono: 'configuracion', permisos: ['empleados.ver'] },
+  { a: '/publicaciones', texto: 'Publicaciones', icono: 'publicaciones', permisos: ['publicaciones.ver'] },
+  { a: '/usuarios', texto: 'Usuarios y roles', icono: 'usuarios', permisos: ['usuarios.gestionar'] },
 ];
 
 const NOMBRE_ROL = { admin_rh: 'Administrador (RH)', supervisor: 'Supervisor', lector: 'Lector' } as const;
@@ -40,11 +42,11 @@ export function AppLayout() {
   return (
     <div className={`app ${abierto ? 'menu-abierto' : ''}`}>
       <aside className="sidebar" aria-label="Menú principal">
-        <div className="marca">Vagón COM<span>Nómina</span></div>
+        <div className="marca"><Logo claro /></div>
         <nav>
           {MENU.filter((m) => m.permisos.length === 0 || m.permisos.some(puede)).map((m) => (
             <NavLink key={m.a} to={m.a} end={m.a === '/' || m.a === '/nomina'} onClick={() => setAbierto(false)}>
-              <span className="icono" aria-hidden>{m.icono}</span>{m.texto}
+              <span className="icono" aria-hidden><Icono nombre={m.icono} /></span>{m.texto}
               {m.a === '/publicaciones' && sinLeer > 0 && <span className="insignia-menu" aria-label={`${sinLeer} nuevas`}>{sinLeer > 99 ? '99+' : sinLeer}</span>}
             </NavLink>
           ))}
@@ -54,7 +56,7 @@ export function AppLayout() {
 
       <div className="principal">
         <header className="topbar">
-          <button className="btn-icono solo-movil" onClick={() => setAbierto(true)} aria-label="Abrir menú">☰</button>
+          <button className="btn-icono solo-movil" onClick={() => setAbierto(true)} aria-label="Abrir menú"><Icono nombre="menu" /></button>
           <div className="topbar-espacio" />
           <div className="usuario">
             <strong>{usuario?.name}</strong>

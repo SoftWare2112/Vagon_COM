@@ -4,6 +4,7 @@ import { authApi } from '../../api/endpoints';
 import { mensajeDeError } from '../../api/http';
 import { useAuth } from '../../auth/AuthContext';
 import { Aviso } from '../../components/Aviso';
+import { PantallaAuth } from './PantallaAuth';
 import { ReglasPassword, passwordValida } from './ReglasPassword';
 
 export function CambiarPasswordPage() {
@@ -24,7 +25,7 @@ export function CambiarPasswordPage() {
   };
 
   return (
-    <div className="pantalla-auth">
+    <PantallaAuth>
       <form className="tarjeta-auth" onSubmit={enviar}>
         <h1>Cambiar contraseña</h1>
         {usuario?.must_change_password && <Aviso tipo="info">Por seguridad, define una contraseña propia antes de continuar.</Aviso>}
@@ -35,6 +36,6 @@ export function CambiarPasswordPage() {
         <ReglasPassword valor={p.password} />
         <button className="btn btn-bloque" disabled={!passwordValida(p.password) || p.password !== p.password_confirmation}>Guardar</button>
       </form>
-    </div>
+    </PantallaAuth>
   );
 }
